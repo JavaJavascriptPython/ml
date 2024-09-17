@@ -99,3 +99,47 @@ public class SQLiteInsert {
         insert(name);  // Insert the entered name into the database
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+
+public class SQLiteSelectTest {
+
+    public static void main(String[] args) {
+        // SQLite connection string
+        String url = "jdbc:sqlite:test.db";  // Database file
+        
+        // SQL query to retrieve all data from the table
+        String sql = "SELECT * FROM my_table";  // Replace with your table name
+        
+        try (Connection conn = DriverManager.getConnection(url);
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+
+            // Loop through the result set and display the data
+            while (rs.next()) {
+                // Assuming the table has two columns: id (integer) and name (text)
+                int id = rs.getInt("id");
+                String name = rs.getString("name");
+                
+                // Print each row of data
+                System.out.println("ID: " + id + " | Name: " + name);
+            }
+        } catch (SQLException e) {
+            System.out.println("SQL error: " + e.getMessage());
+        }
+    }
+}
