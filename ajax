@@ -50,3 +50,64 @@
     <pre id="response-output"></pre>
 </body>
 </html>
+
+
+
+
+
+
+
+
+function parseHTMLResponse(htmlText) {
+    // Create a DOMParser instance
+    const parser = new DOMParser();
+
+    // Parse the HTML string into a DOM Document
+    const doc = parser.parseFromString(htmlText, "text/html");
+
+    // Extract the specific data using CSS selectors
+    // Replace '#specific-element-id' or '.class-name' with actual identifiers from your CGI HTML
+    const extractedData = doc.querySelector("#specific-element-id")?.textContent || "No data found";
+
+    // Display the extracted data on your frontend
+    document.getElementById("response-output").innerText = extractedData;
+}
+
+
+
+
+
+
+
+function parseTableData(htmlText) {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(htmlText, "text/html");
+
+    // Select the table
+    const table = doc.querySelector("table");
+
+    // Iterate through rows and extract cell data
+    if (table) {
+        const rows = Array.from(table.rows);
+        rows.forEach(row => {
+            const cells = Array.from(row.cells).map(cell => cell.textContent.trim());
+            console.log("Row Data:", cells);
+        });
+    } else {
+        console.error("No table found in the response!");
+    }
+}
+
+
+
+
+
+
+
+const message = doc.querySelector(".message-class")?.textContent;
+const status = doc.querySelector(".status-class")?.textContent;
+
+
+
+
+
