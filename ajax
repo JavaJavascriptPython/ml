@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AJAX Request to CGI</title>
+    <script>
+        // Function to send an AJAX request
+        async function sendCGIRequest() {
+            const endpoint = "/cgi-bin/your-script.cgi"; // Replace with your actual CGI script URL
+
+            // Dummy payload
+            const payload = {
+                key1: "value1",
+                key2: "value2",
+                key3: "value3"
+            };
+
+            try {
+                // Sending a POST request to the CGI server
+                const response = await fetch(endpoint, {
+                    method: "POST", // Use "GET" if your CGI script requires it
+                    headers: { 
+                        "Content-Type": "application/x-www-form-urlencoded" 
+                    },
+                    body: new URLSearchParams(payload) // Encoding the payload
+                });
+
+                // Checking if the response is successful
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                // Assuming the response is plain text (adjust for JSON if needed)
+                const result = await response.text();
+                console.log("Response from CGI:", result);
+
+                // Display the response on the page
+                document.getElementById("response-output").innerText = result;
+            } catch (error) {
+                console.error("Error while making request:", error);
+                document.getElementById("response-output").innerText = "Error: " + error.message;
+            }
+        }
+    </script>
+</head>
+<body>
+    <h1>AJAX Request to CGI Example</h1>
+    <button onclick="sendCGIRequest()">Send Request</button>
+    <pre id="response-output"></pre>
+</body>
+</html>
