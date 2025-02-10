@@ -1,0 +1,98 @@
+use strict;
+use warnings;
+use threads;
+use Thread::Queue;
+use threads::shared;
+
+# Configuration
+my $input_file = "input.txt";
+my @output_files = map { "output_$_\.txt" } (1..12);
+my $num_threads = 12;
+
+# Shared data structures
+my @queues = map { Thread::Queue->new() } (1..$num_threads);
+my @hashes : shared;
+$hashes[$_] = &share({}) for (0..11);  # 12 shared hashes
+
+# Queue for file reading
+my $file_queue = Thread::Queue->new();
+
+# Subroutines that you already have (Placeholder names)
+sub process_1 { my ($line, $hash) = @_; $hash->{$line}++; }
+sub process_2 { my ($line, $hash) = @_; $hash->{$line} = length($line); }
+sub process_3 { my ($line, $hash) = @_; $hash->{$line} = reverse $line; }
+sub process_4 { my ($line, $hash) = @_; $hash->{$line} = uc($line); }
+sub process_5 { my ($line, $hash) = @_; $hash->{$line} = lc($line); }
+sub process_6 { my ($line, $hash) = @_; $hash->{$line} = scalar reverse $line; }
+sub process_7 { my ($line, $hash) = @_; $hash->{$line} = ord(substr($line, 0, 1)); }
+sub process_8 { my ($line, $hash) = @_; $hash->{$line} = substr($line, -1); }
+sub process_9 { my ($line, $hash) = @_; $hash->{$line} = length($line) * 2; }
+sub process_10 { my ($line, $hash) = @_; $hash->{$line} = index($line, 'a'); }
+sub process_11 { my ($line, $hash) = @_; $hash->{$line} = rindex($line, 'e'); }
+sub process_12 { my ($line, $hash) = @_; $hash->{$line} = tr/a-z/A-Z/; }
+
+# Array of processing subroutines
+my @processors = (\&process_1, \&process_2, \&process_3, \&process_4, \&process_5, 
+                  \&process_6, \&process_7, \&process_8, \&process_9, \&process_10, 
+                  \&process_11, \&process_12);
+
+# Thread to enqueue file lines
+sub file_reader {
+    open my $fh, "<", $input_file or die "Cannot open file: $!";
+    while (my $line = <$fh>) {
+        chomp $line;
+        $file_queue->enqueue($line);
+    }
+    close $fh;
+    $file_queue->end();  # Signal end of queue
+}
+
+# Worker threads to process lines and populate 12 hashes
+sub process_lines {
+    my ($index) = @_;
+    while (defined(my $line = $file_queue->dequeue())) {
+        lock($hashes[$index]);
+        $processors[$index]->($line, $hashes[$index]);  # Call the corresponding subroutine
+    }
+}
+
+# Writer threads to write hashes to files
+sub write_hash {
+    my ($index) = @_;
+    open my $fh, ">", $output_files[$index] or die "Cannot open output file: $!";
+    
+    {
+        lock($hashes[$index]);
+        foreach my $key (keys %{ $hashes[$index] }) {
+            print $fh "$key: $hashes[$index]->{$key}\n";
+        }
+    }
+    
+    close $fh;
+}
+
+# Create and start the file reader thread
+my $reader_thread = threads->create(\&file_reader);
+
+# Create 12 processing threads
+my @worker_threads;
+for my $i (0..$num_threads-1) {
+    push @worker_threads, threads->create(\&process_lines, $i);
+}
+
+# Wait for processing threads to finish
+$_->join() for @worker_threads;
+
+# Create 12 writer threads
+my @writer_threads;
+for my $i (0..$num_threads-1) {
+    push @writer_threads, threads->create(\&write_hash, $i);
+}
+
+# Wait for writer threads to finish
+$_->join() for @writer_threads;
+
+# Wait for the file reader thread to finish
+$reader_thread->join();
+
+print "Processing complete.\n";
