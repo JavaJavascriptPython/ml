@@ -1,0 +1,154 @@
+Step 1: Set Up a New Java Project in Eclipse
+
+1. Open Eclipse → Go to File → New → Java Project.
+
+
+2. Enter Project Name (e.g., SpringBootManual).
+
+
+3. Click Finish.
+
+
+
+
+---
+
+Step 2: Download Required JARs
+
+Since we are not using Maven, we need to manually download Spring Boot dependencies.
+
+Essential JARs
+
+1. Spring Boot Core Libraries
+
+spring-boot-3.x.x.jar
+
+spring-boot-autoconfigure-3.x.x.jar
+
+spring-boot-starter-3.x.x.jar
+
+spring-context-6.x.x.jar
+
+spring-core-6.x.x.jar
+
+
+
+2. Logging (Required by Spring)
+
+spring-jcl-6.x.x.jar
+
+jul-to-slf4j-2.x.x.jar
+
+logback-classic-1.x.x.jar
+
+logback-core-1.x.x.jar
+
+
+
+3. Embedded Tomcat (For Running the Web App)
+
+tomcat-embed-core-10.x.x.jar
+
+tomcat-embed-websocket-10.x.x.jar
+
+
+
+4. Jackson (For JSON Handling)
+
+jackson-core-2.x.x.jar
+
+jackson-databind-2.x.x.jar
+
+
+
+
+🔹 Download and place all JAR files inside a lib/ folder inside your project.
+
+
+---
+
+Step 3: Add JARs to Eclipse Build Path
+
+1. In Eclipse, right-click on your project → Properties.
+
+
+2. Go to Java Build Path → Select Libraries tab.
+
+
+3. Click Add External JARs...
+
+
+4. Select all JARs from the lib/ folder.
+
+
+5. Click Apply and Close.
+
+
+
+
+---
+
+Step 4: Create the Spring Boot Main Class
+
+1. In Eclipse, create a package: com.example.demo.
+
+
+2. Inside the package, create a Java class: DemoApplication.java.
+
+
+3. Add the following code:
+
+
+
+package com.example.demo;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@SpringBootApplication
+public class DemoApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(DemoApplication.class, args);
+    }
+}
+
+@RestController
+@RequestMapping("/api")
+class HelloController {
+    @GetMapping("/hello")
+    public String hello() {
+        return "Hello, Spring Boot without Maven!";
+    }
+}
+
+
+---
+
+Step 5: Run the Application
+
+1. Compile the Java files
+
+In Eclipse, click Run → Run As → Java Application.
+
+Your Spring Boot app should start on port 8080.
+
+
+
+2. Test the API
+
+Open a browser and go to:
+
+http://localhost:8080/api/hello
+
+You should see:
+
+Hello, Spring Boot without Maven!
+
+
+
+
+
+---
