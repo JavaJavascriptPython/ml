@@ -1,0 +1,215 @@
+import tkinter as tk
+from tkinter import messagebox, Frame
+import pyautogui
+import pytesseract
+import cv2
+import numpy as np
+import pyperclip
+from PIL import Image, ImageTk
+import os
+import sys
+
+# Configure pytesseract path - you'll need to update this to your Tesseract installation path
+pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'  # Windows path example
+
+class ScreenCaptureApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Screen Text Extractor")
+        self.root.geometry("600x500")
+        self.root.resizable(True, True)
+        
+        # Variables
+        self.start_x = None
+        self.start_y = None
+        self.current_x = None
+        self.current_y = None
+        self.selection_rectangle = None
+        self.captured_image = None
+        self.extracted_text = ""
+        self.is_capturing = False
+        
+        # Main frame
+        self.main_frame = Frame(root)
+        self.main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # Instruction Label
+        self.instruction_label = tk.Label(
+            self.main_frame, 
+            text="Click 'Capture Screen' button, then select an area with text to extract",
+            font=("Arial", 12)
+        )
+        self.instruction_label.pack(pady=10)
+        
+        # Capture Button
+        self.capture_btn = tk.Button(
+            self.main_frame, 
+            text="Capture Screen", 
+            command=self.start_capture,
+            bg="#4CAF50", 
+            fg="white", 
+            font=("Arial", 12, "bold"),
+            padx=10,
+            pady=5
+        )
+        self.capture_btn.pack(pady=10)
+        
+        # Preview Label
+        self.preview_label = tk.Label(self.main_frame, text="Preview:")
+        self.preview_label.pack(anchor=tk.W, pady=(10, 5))
+        
+        # Image Preview
+        self.image_preview = tk.Label(self.main_frame, text="No image captured yet", bg="#f0f0f0", height=10)
+        self.image_preview.pack(fill=tk.X, pady=5)
+        
+        # Text Result Label
+        self.result_label = tk.Label(self.main_frame, text="Extracted Text:")
+        self.result_label.pack(anchor=tk.W, pady=(10, 5))
+        
+        # Text Result
+        self.text_result = tk.Text(self.main_frame, height=8, width=60, wrap=tk.WORD)
+        self.text_result.pack(fill=tk.BOTH, expand=True, pady=5)
+        
+        # Copy Button
+        self.copy_btn = tk.Button(
+            self.main_frame, 
+            text="Copy to Clipboard", 
+            command=self.copy_to_clipboard,
+            bg="#2196F3", 
+            fg="white", 
+            font=("Arial", 11),
+            state=tk.DISABLED
+        )
+        self.copy_btn.pack(pady=10)
+    
+    def start_capture(self):
+        """Initiate the screen capture process"""
+        self.root.iconify()  # Minimize the window
+        self.is_capturing = True
+        
+        # Create a fullscreen transparent window for selection
+        self.selection_window = tk.Toplevel(self.root)
+        self.selection_window.attributes('-fullscreen', True)
+        self.selection_window.attributes('-alpha', 0.3)  # Semi-transparent
+        self.selection_window.configure(bg="gray")
+        
+        # Take a screenshot for the background
+        screenshot = pyautogui.screenshot()
+        self.screenshot_image = ImageTk.PhotoImage(screenshot)
+        
+        # Create canvas on top of the transparent window
+        screen_width = self.selection_window.winfo_screenwidth()
+        screen_height = self.selection_window.winfo_screenheight()
+        self.canvas = tk.Canvas(self.selection_window, width=screen_width, height=screen_height)
+        self.canvas.pack()
+        self.canvas.create_image(0, 0, image=self.screenshot_image, anchor=tk.NW)
+        
+        # Event bindings for selection
+        self.canvas.bind("<ButtonPress-1>", self.on_selection_start)
+        self.canvas.bind("<B1-Motion>", self.on_selection_motion)
+        self.canvas.bind("<ButtonRelease-1>", self.on_selection_complete)
+        
+        # Escape key to cancel
+        self.selection_window.bind("<Escape>", self.cancel_capture)
+    
+    def on_selection_start(self, event):
+        """Handle the start of selection"""
+        self.start_x = event.x
+        self.start_y = event.y
+    
+    def on_selection_motion(self, event):
+        """Handle the motion during selection"""
+        self.current_x = event.x
+        self.current_y = event.y
+        
+        # Clear previous rectangle
+        self.canvas.delete("selection_rectangle")
+        
+        # Draw new rectangle
+        self.canvas.create_rectangle(
+            self.start_x, self.start_y, self.current_x, self.current_y, 
+            outline="red", width=2, tags="selection_rectangle"
+        )
+    
+    def on_selection_complete(self, event):
+        """Complete the selection and process the captured area"""
+        if not self.is_capturing:
+            return
+            
+        self.is_capturing = False
+        self.current_x = event.x
+        self.current_y = event.y
+        
+        # Ensure coordinates are ordered correctly
+        x1 = min(self.start_x, self.current_x)
+        y1 = min(self.start_y, self.current_y)
+        x2 = max(self.start_x, self.current_x)
+        y2 = max(self.start_y, self.current_y)
+        
+        # Take screenshot of selected region
+        region = (x1, y1, x2-x1, y2-y1)
+        try:
+            screenshot = pyautogui.screenshot(region=region)
+            self.process_screenshot(screenshot)
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to capture screenshot: {str(e)}")
+        
+        # Close selection window
+        self.selection_window.destroy()
+        self.root.deiconify()  # Restore the main window
+    
+    def cancel_capture(self, event=None):
+        """Cancel the capture process"""
+        self.is_capturing = False
+        self.selection_window.destroy()
+        self.root.deiconify()
+    
+    def process_screenshot(self, screenshot):
+        """Process the captured screenshot to extract text"""
+        # Convert PIL Image to OpenCV format
+        open_cv_image = np.array(screenshot)
+        open_cv_image = open_cv_image[:, :, ::-1].copy()  # Convert RGB to BGR
+        
+        # Preprocess image for better OCR results
+        gray = cv2.cvtColor(open_cv_image, cv2.COLOR_BGR2GRAY)
+        gray = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
+        
+        # Extract text using Tesseract
+        try:
+            self.extracted_text = pytesseract.image_to_string(gray, lang='eng')
+            
+            # Display results
+            self.text_result.delete(1.0, tk.END)
+            self.text_result.insert(tk.END, self.extracted_text)
+            
+            # Enable copy button
+            self.copy_btn.config(state=tk.NORMAL)
+            
+            # Display image preview
+            preview_image = screenshot.resize((int(screenshot.width/2), int(screenshot.height/2)), Image.Resampling.LANCZOS)
+            self.preview_photo = ImageTk.PhotoImage(preview_image)
+            self.image_preview.config(image=self.preview_photo, height=0)
+            self.image_preview.image = self.preview_photo
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to extract text: {str(e)}")
+    
+    def copy_to_clipboard(self):
+        """Copy extracted text to clipboard"""
+        if self.extracted_text:
+            pyperclip.copy(self.extracted_text)
+            messagebox.showinfo("Success", "Text copied to clipboard!")
+
+def resource_path(relative_path):
+    """Get absolute path to resource, works for dev and for PyInstaller"""
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = ScreenCaptureApp(root)
+    root.mainloop()
