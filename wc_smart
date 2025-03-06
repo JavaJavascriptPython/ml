@@ -1,0 +1,176 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Data::Dumper;
+
+my @servers = ('server1', 'server2', 'server3', 'server4', 'server5', 'server6', 'server7', 'server8', 'server9', 'server10');
+
+sub build_job_reference {
+    my $reference_file = "job_reference.txt";
+    my %all_jobs;
+    
+
+    foreach my $server (@servers) {
+        my $log_file = "${server}_log.txt";
+        
+        open(my $log_fh, '<', $log_file) or warn "Cannot open $log_file: $!";
+        
+        while (my $line = <$log_fh>) {
+            if ($line =~ /start of job (\S+) at/) {
+                my $job_full_name = $1;
+                
+
+                my ($base_job, $stream);
+                
+                if ($job_full_name =~ /^(.+)_(\d+)$/) {
+                    $base_job = $1;
+                    $stream = $2;
+                } else {
+                    $base_job = $job_full_name;
+                    $stream = '0'; 
+                }
+                
+  
+                $all_jobs{$base_job}{$stream} = 1;
+            }
+        }
+        
+        close($log_fh) if $log_fh;
+    }
+    
+
+    open(my $ref_fh, '>', $reference_file) or die "Cannot open $reference_file: $!";
+    
+    foreach my $job (sort keys %all_jobs) {
+        my @streams = sort keys %{$all_jobs{$job}};
+        
+    
+        @streams = grep { $_ ne '0' } @streams if scalar(@streams) > 1 && exists $all_jobs{$job}{'0'};
+        
+        print $ref_fh "$job:" . join(',', @streams) . "\n";
+    }
+    
+    close($ref_fh);
+    
+    return \%all_jobs;
+}
+
+
+sub escape_csv_field {
+    my $field = shift;
+    if ($field =~ /[,"\n\r]/) {
+        $field =~ s/"/""/g;  
+        return qq{"$field"};
+    }
+    return $field;
+}
+
+sub check_job_execution {
+    my $reference_data = shift;
+    my $output_file = "job_status_report.csv";
+    
+    my %job_execution;
+    foreach my $job (keys %$reference_data) {
+        my @streams = keys %{$reference_data->{$job}};
+        $job_execution{$job} = {
+            expected_streams => [grep { $_ ne '0' } @streams],
+            executed_streams => []
+        };
+    }
+    
+    foreach my $server (@servers) {
+        my $log_file = "${server}_log.txt";
+        
+        open(my $log_fh, '<', $log_file) or warn "Cannot open $log_file: $!";
+        
+        while (my $line = <$log_fh>) {
+            if ($line =~ /start of job (\S+) at/) {
+                my $job_full_name = $1;
+                
+                my ($base_job, $stream);
+                
+                if ($job_full_name =~ /^(.+)_(\d+)$/) {
+                    $base_job = $1;
+                    $stream = $2;
+                    
+                    if (exists $job_execution{$base_job}) {
+                        push @{$job_execution{$base_job}{executed_streams}}, $stream;
+                    }
+                }
+                else {
+                    $base_job = $job_full_name;
+                    if (exists $job_execution{$base_job}) {
+                        $job_execution{$base_job}{executed} = 1;
+                    }
+                }
+            }
+        }
+        
+        close($log_fh) if $log_fh;
+    }
+    
+    open(my $csv_fh, '>', $output_file) or die "Cannot open $output_file: $!";
+    
+    print $csv_fh "Job,Status,Missing Streams\n";
+    
+    foreach my $job (sort keys %job_execution) {
+        my $status;
+        my $missing_streams = "";
+        
+        if (scalar(@{$job_execution{$job}{expected_streams}}) == 0) {
+            $status = $job_execution{$job}{executed} ? "Yes" : "No";
+        } 
+        else {
+            my %executed_hash;
+            map { $executed_hash{$_} = 1 } @{$job_execution{$job}{executed_streams}};
+            
+            my @missing = grep { !exists $executed_hash{$_} } @{$job_execution{$job}{expected_streams}};
+            
+            if (@missing) {
+                $status = "No";
+                $missing_streams = join(',', @missing);
+            } else {
+                $status = "Yes";
+            }
+        }
+        
+        my $job_escaped = escape_csv_field($job);
+        my $status_escaped = escape_csv_field($status);
+        my $missing_streams_escaped = escape_csv_field($missing_streams);
+        
+        print $csv_fh "$job_escaped,$status_escaped,$missing_streams_escaped\n";
+    }
+    
+    close($csv_fh);
+    print "Report generated: $output_file\n";
+}
+
+my $load_existing_reference = 0;  
+
+my $job_reference;
+if ($load_existing_reference && -e "job_reference.txt") {
+   
+    $job_reference = {};
+    open(my $ref_fh, '<', "job_reference.txt") or die "Cannot open job_reference.txt: $!";
+    
+    while (my $line = <$ref_fh>) {
+        chomp $line;
+        my ($job, $streams_list) = split(/:/, $line);
+        my @streams = split(/,/, $streams_list);
+        
+        foreach my $stream (@streams) {
+            $job_reference->{$job}{$stream} = 1;
+        }
+    }
+    
+    close($ref_fh);
+} else {
+   
+    print "Building job reference data...\n";
+    $job_reference = build_job_reference();
+}
+
+print "Checking job execution status...\n";
+check_job_execution($job_reference);
+
+print "Job monitoring completed.\n";
