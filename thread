@@ -1,0 +1,203 @@
+
+sub readImg0File ($$) {
+
+my $startdate = $ [0];
+
+my $enddate = $ [1];
+
+$found-1;
+
+for ($i=0; $i < $threadCount; $i++) {
+
+$singleThread($i} = threads->create (\&Process)
+
+}
+
+my $joinCount = $threadCount;
+
+my $q msg;
+
+while ($joinCount > 0) {
+
+if (msgrcv($q id, $q msg, 200, $pid, 0)) {
+
+my ($msgType, $recvId) unpack ("1! a", $q msg);
+
+if ($singleThread($recvId-1)->join() ) { #print "Join success for $recvId.\n";
+
+) else (
+
+print "Join failed for $recvId.\n";
+
+SjoinCount--;
+
+return $found;
+}
+
+
+
+
+
+
+
+
+
+
+sub Process() {
+
+my $thr id threads->self->tid();
+
+chomp ($thr_id);
+
+print " $thr_id\n";
+
+# my $startdate = $ [0];
+
+my $enddate = $ [1];
+
+my ($nextdate, $prevdate);
+
+# my @dates ();
+
+#my @files = ();
+
+my $found= 0;
+
+$getdate-date
+
+@dates genDate ($startdate, Şenddate);
+
+#Generate the date list
+
+#Modify the list of the filenames including the file path
+
+foreach my $date (@dates) {
+
+if ((-e "$imgfile2"."img0". "$mode".".$date.txt.gz")) {
+
+push @files, "$imgfile2"."img0"."$mode".".$date.txt.gz";
+
+push @datelist, $date;
+
+$found 1;
+
+}
+
+}
+
+
+
+if (!$found) {
+
+exit;
+
+}
+
+
+$found =0;
+
+($line, $date, Stxndate, $brCode, Steller, StxnCode, Smodule, Shour, SerrCode);
+
+my my ($startTime, SendTime, Shrminsec, SresTime);
+
+foreach my Simgfile (@files) {
+
+print "imgfile$imgfile\n";
+
+my ($file, $basedir) File::Basename:: fileparse($imgfile);
+
+my $date substr($file,6,8);
+
+my sengfile = "$basedir", "engo". "$mode".", $date.txt.gz";
+
+open (INPUT, "/usr/contrib/bin/gunzip-c-stdout Simgfile (");
+
+switch ($thr id) (
+
+case 1 (
+
+BrTxnData (date);
+
+}
+case 2 {
+
+ErrorDetails($date); }
+
+case 3 {
+
+I
+
+ATMTxnResponse($date); }
+
+case 4 {
+
+BRTxnResponse($date); }
+
+case 5 {
+
+TFDTxnResponse($date);
+
+
+}
+
+case 6 {
+
+TxnResponse ($date);
+
+}
+
+case 7 {
+
+ModResponse($date); }
+
+I
+
+case 8{
+
+TxnBucketSummary($date);
+
+case 9 {
+
+DtBrSummary($date);
+
+}
+
+case 10(
+
+INBTxnResponse($date);
+
+}
+
+
+
+case 11 {
+
+TxnResponseTime ($date);
+
+}
+
+case 12 {
+
+HrSummary($date);
+
+else
+
+(Iprint "$thr id-case not true\n" )
+
+}
+
+}
+
+}
+
+if (msgsnd($q id, pack("l! ak", $pid,$thr id), 0)) {
+
+"$thr id written to queue.\n";
+
+} else {
+
+print "Unable to write $thr_id to queue.\n";
+
+}
+
+}
