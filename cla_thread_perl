@@ -1,0 +1,314 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+use threads;
+use Thread::Queue;
+use DBI;
+use DBD::SQLite;
+use File::Basename;
+use Switch;
+use IO::Uncompress::Gunzip qw(gunzip $GunzipError);
+
+# Configuration
+my $CHUNK_SIZE = 1024 * 1024 * 4; # 4MB chunks, adjust based on your memory
+my $DB_FILE = "img_processing.db";
+my $threadCount = 12;
+
+# Initialize SQLite database
+my $dbh = DBI->connect("dbi:SQLite:dbname=$DB_FILE", "", "", {
+    AutoCommit => 0,
+    RaiseError => 1,
+    PrintError => 0,
+});
+
+# Set up database tables for intermediate storage
+setup_database($dbh);
+$dbh->disconnect(); # Close main connection, threads will open their own
+
+sub readImg0File ($$) {
+    my $startdate = $_[0];
+    my $enddate = $_[1];
+    my $mode = "your_mode_here"; # Set your mode here
+    my $imgfile2 = "your_base_path_here"; # Set your base path here
+
+    my $found = 0;
+    # Create a chunk queue for distributing file data
+    my $chunk_queue = Thread::Queue->new();
+    
+    # Create worker threads - each thread handles one function
+    my @workers;
+    for my $i (1..$threadCount) {
+        $workers[$i-1] = threads->create(\&ProcessWorker, $i);
+    }
+    
+    # Generate date list and find the one image file
+    my @dates = genDate($startdate, $enddate);
+    foreach my $date (@dates) {
+        my $imgfile = "$imgfile2"."img0"."$mode".".$date.txt.gz";
+        
+        if (-e $imgfile) {
+            $found = 1;
+            print "Processing file: $imgfile for date $date\n";
+            
+            # Open and decompress the file
+            my $gz = IO::Uncompress::Gunzip->new($imgfile)
+                or die "Cannot open $imgfile: $GunzipError";
+            
+            # Read file in chunks and distribute to queue
+            my $buffer;
+            my $chunk_id = 0;
+            
+            # Send date info to all threads
+            $chunk_queue->enqueue({
+                type => 'date_info',
+                date => $date
+            });
+            
+            while (my $bytes_read = read($gz, $buffer, $CHUNK_SIZE)) {
+                # Add this chunk to the queue for all threads
+                $chunk_queue->enqueue({
+                    type => 'data',
+                    chunk_id => $chunk_id++,
+                    data => $buffer,
+                });
+            }
+            
+            close($gz);
+            
+            # Signal end of this file's data
+            $chunk_queue->enqueue({
+                type => 'eof',
+                date => $date
+            });
+            
+            # Only process one file if found
+            last;
+        }
+    }
+    
+    if (!$found) {
+        print "No files found for processing.\n";
+        # Signal all threads to end
+        $chunk_queue->enqueue(undef) for (1..$threadCount);
+        return 0;
+    }
+    
+    # Signal all threads that no more files will be processed
+    $chunk_queue->enqueue(undef) for (1..$threadCount);
+    
+    # Wait for all threads to finish
+    foreach my $thr (@workers) {
+        $thr->join();
+    }
+    
+    # Clean up database
+    cleanup_database();
+    
+    return $found;
+}
+
+sub ProcessWorker {
+    my $thr_id = shift;
+    my $current_date = "";
+    
+    # Connect to SQLite from this thread
+    my $thread_dbh = DBI->connect("dbi:SQLite:dbname=$DB_FILE", "", "", {
+        AutoCommit => 0,
+        RaiseError => 1,
+        PrintError => 0,
+    });
+    
+    # Process data from the queue
+    while (my $item = $chunk_queue->dequeue()) {
+        # End of all processing
+        last unless defined $item;
+        
+        # Handle different message types
+        if ($item->{type} eq 'date_info') {
+            $current_date = $item->{date};
+            # Initialize processing for this date
+            initialize_processing($thr_id, $current_date);
+        }
+        elsif ($item->{type} eq 'data') {
+            # Process this chunk of data according to thread function
+            process_data_chunk($thr_id, $current_date, $item->{data}, $thread_dbh);
+        }
+        elsif ($item->{type} eq 'eof') {
+            # Finalize processing for this date
+            finalize_processing($thr_id, $current_date, $thread_dbh);
+            $thread_dbh->commit();
+        }
+    }
+    
+    # Close database connection
+    $thread_dbh->disconnect();
+    
+    return $thr_id;
+}
+
+# Process a chunk of data according to thread ID
+sub process_data_chunk {
+    my ($thr_id, $date, $data, $dbh) = @_;
+    
+    # Process each line in the chunk
+    foreach my $line (split /\n/, $data) {
+        next unless $line; # Skip empty lines
+        
+        # Process according to thread function
+        switch ($thr_id) {
+            case 1 {
+                process_BrTxnData($line, $date, $dbh);
+            }
+            case 2 {
+                process_ErrorDetails($line, $date, $dbh);
+            }
+            case 3 {
+                process_ATMTxnResponse($line, $date, $dbh);
+            }
+            case 4 {
+                process_BRTxnResponse($line, $date, $dbh);
+            }
+            case 5 {
+                process_TFDTxnResponse($line, $date, $dbh);
+            }
+            case 6 {
+                process_TxnResponse($line, $date, $dbh);
+            }
+            case 7 {
+                process_ModResponse($line, $date, $dbh);
+            }
+            case 8 {
+                process_TxnBucketSummary($line, $date, $dbh);
+            }
+            case 9 {
+                process_DtBrSummary($line, $date, $dbh);
+            }
+            case 10 {
+                process_INBTxnResponse($line, $date, $dbh);
+            }
+            case 11 {
+                process_TxnResponseTime($line, $date, $dbh);
+            }
+            case 12 {
+                process_HrSummary($line, $date, $dbh);
+            }
+        }
+    }
+    
+    # Commit periodically to avoid large transactions
+    if (rand() < 0.01) { # ~1% chance of commit per chunk
+        $dbh->commit();
+    }
+}
+
+# Example implementation of one processing function
+sub process_BrTxnData {
+    my ($line, $date, $dbh) = @_;
+    
+    # Parse the line
+    my @fields = split(/\|/, $line);
+    return if scalar(@fields) < 6;
+    
+    my $brCode = $fields[3] || "";
+    my $txnCode = $fields[5] || "";
+    
+    # Store in database for summarization later
+    my $sth = $dbh->prepare_cached(
+        "INSERT OR IGNORE INTO br_txn_data (date, br_code, txn_code) VALUES (?, ?, ?)"
+    );
+    $sth->execute($date, $brCode, $txnCode);
+    
+    my $update_sth = $dbh->prepare_cached(
+        "UPDATE br_txn_data SET count = count + 1 WHERE date = ? AND br_code = ? AND txn_code = ?"
+    );
+    $update_sth->execute($date, $brCode, $txnCode);
+}
+
+# Initialize processing for a date
+sub initialize_processing {
+    my ($thr_id, $date) = @_;
+    
+    print "Thread $thr_id initializing processing for date $date\n";
+    # Any initialization needed for this function and date
+}
+
+# Finalize processing and write output files
+sub finalize_processing {
+    my ($thr_id, $date, $dbh) = @_;
+    
+    print "Thread $thr_id finalizing processing for date $date\n";
+    
+    switch ($thr_id) {
+        case 1 {
+            finalize_BrTxnData($date, $dbh);
+        }
+        case 2 {
+            finalize_ErrorDetails($date, $dbh);
+        }
+        # ... other cases for remaining functions
+    }
+}
+
+# Example finalization function for BrTxnData
+sub finalize_BrTxnData {
+    my ($date, $dbh) = @_;
+    
+    open my $out_fh, '>', "BrTxnData_$date.txt" or die "Cannot open output file: $!";
+    
+    my $results_sth = $dbh->prepare(
+        "SELECT br_code, txn_code, count FROM br_txn_data 
+         WHERE date = ? ORDER BY br_code, txn_code"
+    );
+    $results_sth->execute($date);
+    
+    while (my ($brCode, $txnCode, $count) = $results_sth->fetchrow_array()) {
+        print $out_fh "$date|$brCode|$txnCode|$count\n";
+    }
+    
+    close $out_fh;
+}
+
+# Set up database tables
+sub setup_database {
+    my $dbh = shift;
+    
+    # Create tables for each processing function
+    $dbh->do("DROP TABLE IF EXISTS br_txn_data");
+    $dbh->do("CREATE TABLE br_txn_data (
+        date TEXT,
+        br_code TEXT,
+        txn_code TEXT,
+        count INTEGER DEFAULT 0,
+        PRIMARY KEY (date, br_code, txn_code)
+    )");
+    
+    # Create tables for other functions
+    # $dbh->do("DROP TABLE IF EXISTS error_details");
+    # $dbh->do("CREATE TABLE error_details (...);
+    
+    # ... create tables for all other functions
+    
+    $dbh->commit();
+}
+
+# Clean up database
+sub cleanup_database {
+    my $dbh = DBI->connect("dbi:SQLite:dbname=$DB_FILE", "", "", {
+        RaiseError => 1,
+        PrintError => 0,
+    });
+    
+    # Clean up tables if needed or keep for debugging
+    # $dbh->do("DROP TABLE IF EXISTS br_txn_data");
+    # ... drop other tables
+    
+    $dbh->disconnect();
+}
+
+# Your date generation function (implement this based on your existing code)
+sub genDate {
+    my ($start, $end) = @_;
+    # Your implementation here
+    my @dates = ("20230101"); # Dummy implementation
+    return @dates;  # Return array of dates between start and end
+}
