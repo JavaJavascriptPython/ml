@@ -1,0 +1,141 @@
+use strict;
+use warnings;
+use threads;
+use Thread::Queue;
+use Thread::Shared;
+use Fcntl qw(:flock);
+
+my $input_file = "data.img";  # 50GB file
+my $num_threads = 12;
+my $batch_size = 100_000;  # Write every 100,000 records
+my @workers;
+my $queue = Thread::Queue->new();
+
+# Shared hashes for processing
+my %brTxnData :shared;
+my %errorDetails :shared;
+my %atmTxnResponse :shared;
+my %brTxnResponse :shared;
+my %tfdTxnResponse :shared;
+my %txnResponse :shared;
+my %modResponse :shared;
+my %txnBucketSummary :shared;
+my %dtBrSummary :shared;
+my %inbTxnResponse :shared;
+my %txnResponseTime :shared;
+my %hrSummary :shared;
+
+# Initialize worker threads
+for my $i (1..$num_threads) {
+    push @workers, threads->create(\&process_data, $i);
+}
+
+# Reader thread: Reads file line by line and distributes to workers
+sub read_file {
+    open my $fh, "<", $input_file or die "Cannot open file: $!";
+    
+    while (my $line = <$fh>) {
+        chomp $line;
+        $queue->enqueue($line);
+    }
+    
+    close $fh;
+    $queue->end();  # Signal workers that no more data is coming
+}
+
+# Worker threads: Process data in batches
+sub process_data {
+    my $count = 0;  # Track how many records processed
+
+    while (my $line = $queue->dequeue()) {
+        process_line($line);
+        $count++;
+
+        # Every batch_size records, write data to temp files and keep frequent updates in memory
+        if ($count >= $batch_size) {
+            write_to_temp_files();
+            $count = 0;  # Reset counter
+        }
+    }
+}
+
+# Processing function (Each function has its own logic)
+sub process_line {
+    my ($line) = @_;
+    my ($code, $value) = split /\s+/, $line, 2;
+
+    lock(%brTxnData);
+    $brTxnData{$code}++;  # Example: Increment count if code appears again
+
+    lock(%errorDetails);
+    $errorDetails{$code} .= " $value";  # Example: Append value to error log
+
+    # Process other functions similarly...
+}
+
+# Periodic writing: Write each function's hash to its own temp file
+sub write_to_temp_files {
+    write_hash_to_file("brTxnData.tmp", \%brTxnData);
+    write_hash_to_file("errorDetails.tmp", \%errorDetails);
+    # Add other functions similarly...
+}
+
+# Helper function to write hash data to temp files
+sub write_hash_to_file {
+    my ($filename, $hash_ref) = @_;
+    open my $fh, ">>", $filename or die "Cannot write to $filename: $!";
+    flock($fh, LOCK_EX);
+    
+    foreach my $key (keys %$hash_ref) {
+        print $fh "$key $hash_ref->{$key}\n";
+    }
+    
+    close $fh;
+}
+
+# Final merge step: Read temp files and update the final hash
+sub merge_temp_files {
+    merge_hash_from_file("brTxnData.tmp", \%brTxnData);
+    merge_hash_from_file("errorDetails.tmp", \%errorDetails);
+    # Merge other functions similarly...
+}
+
+# Read temp file, update final hash
+sub merge_hash_from_file {
+    my ($filename, $hash_ref) = @_;
+    return unless -e $filename;  # Skip if file does not exist
+
+    open my $fh, "<", $filename or die "Cannot read $filename: $!";
+    while (my $line = <$fh>) {
+        chomp $line;
+        my ($key, $value) = split /\s+/, $line, 2;
+        
+        lock($hash_ref);
+        if (exists $hash_ref->{$key}) {
+            $hash_ref->{$key} += $value;  # Merge counts or values
+        } else {
+            $hash_ref->{$key} = $value;
+        }
+    }
+    close $fh;
+}
+
+# Start the reader thread
+my $reader_thread = threads->create(\&read_file);
+
+# Wait for all threads to finish
+$reader_thread->join();
+$_->join() for @workers;
+
+# Final merge and write to output
+merge_temp_files();
+write_to_final_output();
+
+# Function to write final output
+sub write_to_final_output {
+    open my $fh, ">", "output.txt" or die "Cannot write output file: $!";
+    foreach my $key (keys %brTxnData) {
+        print $fh "$key $brTxnData{$key}\n";
+    }
+    close $fh;
+}
