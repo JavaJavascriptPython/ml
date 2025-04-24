@@ -1,0 +1,37 @@
+use DBI;
+
+my $dbh = DBI->connect("dbi:Oracle:your_sid", "your_user", "your_pass", {
+    RaiseError => 1,
+    AutoCommit => 0
+});
+
+my $sql = q{
+    SELECT fs.filename, fs.status
+    FROM file_status fs
+    JOIN (
+        SELECT filename, MIN(CASE 
+                                WHEN status = 'Trf2' THEN 1
+                                WHEN status = 'Trf1' THEN 2
+                                WHEN status = 'Crts' THEN 3
+                            END) AS priority
+        FROM file_status
+        WHERE filename NOT IN (
+            SELECT filename FROM file_status WHERE status IN ('Trns', 'Trf3')
+        )
+        GROUP BY filename
+    ) latest ON fs.filename = latest.filename
+    WHERE 
+        (fs.status = 'Trf2' AND latest.priority = 1) OR
+        (fs.status = 'Trf1' AND latest.priority = 2) OR
+        (fs.status = 'Crts' AND latest.priority = 3)
+};
+
+my $sth = $dbh->prepare($sql);
+$sth->execute();
+
+while (my @row = $sth->fetchrow_array) {
+    print "Filename: $row[0], Status: $row[1]\n";
+}
+
+$sth->finish;
+$dbh->disconnect;
