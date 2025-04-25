@@ -1,0 +1,120 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use File::Basename;
+use Net::SCP;
+use DBI;
+use Config::Simple;
+
+# Configuration file for database connection
+my $config_file = "config.ini";
+my $config = new Config::Simple($config_file) or die "Cannot read configuration file: $!";
+
+# Database connection details
+my $db_driver = $config->param('database.driver') || "mysql";
+my $db_name = $config->param('database.name') || die "Database name not specified";
+my $db_host = $config->param('database.host') || "localhost";
+my $db_port = $config->param('database.port') || "3306";
+my $db_user = $config->param('database.user') || die "Database user not specified";
+my $db_pass = $config->param('database.pass') || die "Database password not specified";
+
+# Card file path
+my $card_file = $config->param('paths.card_file') || "card_file.txt";
+
+# Connect to the database
+my $dsn = "DBI:$db_driver:database=$db_name;host=$db_host;port=$db_port";
+my $dbh = DBI->connect($dsn, $db_user, $db_pass, {
+    RaiseError => 1,
+    PrintError => 0,
+    AutoCommit => 1
+}) or die "Could not connect to database: $DBI::errstr";
+
+# Read the card file and store in hash
+my %cards;
+open my $card_fh, '<', $card_file or die "Cannot open card file: $!";
+
+while (my $line = <$card_fh>) {
+    chomp $line;
+    next if $line =~ /^\s*$/;  # Skip empty lines
+    
+    my @fields = split /\s*\|\s*/, $line;  # Assuming pipe-delimited fields
+    
+    # Store in hash with directory as key
+    if (@fields >= 8) {
+        my $dir = $fields[0];
+        $cards{$dir} = {
+            'dir' => $fields[0],
+            'target' => $fields[1],
+            'archive_dir' => $fields[2],
+            'log_dir' => $fields[3],
+            'action' => $fields[4],
+            'target_host' => $fields[5],
+            'target_username' => $fields[6],
+            'target_password' => $fields[7]
+        };
+    }
+}
+close $card_fh;
+
+# Query the database for files
+my $query = "SELECT file_path FROM files";
+my $sth = $dbh->prepare($query);
+$sth->execute();
+
+# Process each file
+while (my $row = $sth->fetchrow_hashref) {
+    my $file_path = $row->{file_path};
+    my $file_dir = dirname($file_path);
+    
+    # Check if the file directory matches any card directory
+    foreach my $card_dir (keys %cards) {
+        if ($file_dir eq $card_dir || $file_dir =~ /^$card_dir\//) {
+            # Match found, process the file
+            process_file($file_path, $cards{$card_dir});
+            last;  # Stop after first match
+        }
+    }
+}
+
+$sth->finish();
+$dbh->disconnect();
+
+# Function to process and transfer the file
+sub process_file {
+    my ($file_path, $card) = @_;
+    my $filename = basename($file_path);
+    
+    print "Processing file: $file_path\n";
+    print "Transferring to: " . $card->{target_host} . "\n";
+    
+    # Create log entry
+    my $log_file = $card->{log_dir} . "/transfer_log.txt";
+    open my $log_fh, '>>', $log_file or warn "Cannot open log file: $!";
+    print $log_fh scalar(localtime) . " - Transferring $file_path to " . $card->{target_host} . "\n";
+    
+    # Transfer file via SCP
+    eval {
+        my $scp = Net::SCP->new($card->{target_host}, $card->{target_username});
+        $scp->login($card->{target_password});
+        $scp->put($file_path, $card->{target});
+        
+        print $log_fh scalar(localtime) . " - Transfer successful\n";
+        
+        # Archive the file if needed
+        if ($card->{action} eq 'move') {
+            my $archive_path = $card->{archive_dir} . "/" . $filename;
+            if (rename($file_path, $archive_path)) {
+                print $log_fh scalar(localtime) . " - File archived to $archive_path\n";
+            } else {
+                print $log_fh scalar(localtime) . " - Failed to archive file: $!\n";
+            }
+        }
+    };
+    
+    if ($@) {
+        print $log_fh scalar(localtime) . " - Error during transfer: $@\n";
+        print "Error: $@\n";
+    }
+    
+    close $log_fh;
+}
