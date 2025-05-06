@@ -1,0 +1,84 @@
+import gzip
+import os
+from multiprocessing import Process, Queue
+
+def worker(queue, output_dir, flush_threshold, worker_id):
+    """
+    Worker process: reads lines from the queue, counts transaction codes,
+    and periodically flushes counts to disk.
+    """
+    counts = {}
+    processed_lines = 0
+    flush_count = 0
+    os.makedirs(output_dir, exist_ok=True)
+
+    while True:
+        line = queue.get()
+        if line is None:
+            # Sentinel detected – no more data
+            break
+        # Parse the transaction code (assumes code is before first comma)
+        code = line.strip().split(',')[0]
+        counts[code] = counts.get(code, 0) + 1
+        processed_lines += 1
+
+        # If we've processed enough lines, flush current counts to disk
+        if processed_lines >= flush_threshold:
+            flush_count += 1
+            fname = os.path.join(output_dir, f'worker{worker_id}_part{flush_count}.txt')
+            with open(fname, 'w') as out:
+                for k, v in counts.items():
+                    out.write(f"{k} {v}\n")
+            counts.clear()
+            processed_lines = 0
+
+    # Final flush after the queue ends
+    if counts:
+        flush_count += 1
+        fname = os.path.join(output_dir, f'worker{worker_id}_part{flush_count}.txt')
+        with open(fname, 'w') as out:
+            for k, v in counts.items():
+                out.write(f"{k} {v}\n")
+        counts.clear()
+
+if __name__ == '__main__':
+    input_path = 'transactions.gz'     # Path to the 50GB gzip file
+    output_dir = 'partial_counts'     # Directory for partial results
+    num_workers = 12
+    flush_threshold = 100000         # Flush after ~100k lines to limit memory
+
+    queue = Queue(maxsize=10000)    # Queue for lines; adjust maxsize to tune buffering
+    workers = []
+    for i in range(num_workers):
+        p = Process(target=worker, args=(queue, output_dir, flush_threshold, i))
+        p.start()
+        workers.append(p)
+
+    # Stream lines from the gzip file into the queue
+    with gzip.open(input_path, 'rt') as f:
+        for line in f:
+            queue.put(line)
+    # Send a sentinel (None) to each worker to signal completion
+    for _ in range(num_workers):
+        queue.put(None)
+
+    # Wait for all workers to finish
+    for p in workers:
+        p.join()
+
+    # MERGE STEP: Combine all partial files into final counts
+    final_counts = {}
+    for fname in os.listdir(output_dir):
+        if fname.startswith("worker") and fname.endswith(".txt"):
+            with open(os.path.join(output_dir, fname), 'r') as f:
+                for line in f:
+                    parts = line.split()
+                    if len(parts) != 2:
+                        continue
+                    code, cnt = parts
+                    final_counts[code] = final_counts.get(code, 0) + int(cnt)
+
+    # (Optional) Write final counts to a file, sorted by code
+    with open('final_counts.txt', 'w') as out:
+        for code, cnt in sorted(final_counts.items()):
+            out.write(f"{code} {cnt}\n")
