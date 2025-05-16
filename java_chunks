@@ -1,0 +1,90 @@
+import java.io.*;
+import java.util.concurrent.*;
+import java.util.zip.GZIPInputStream;
+
+public class GzipChunkProcessor {
+    private static final int NUM_THREADS = 12;
+    private static final int CHUNK_SIZE = 1024 * 1024; // 1 MB per chunk
+    private static final int QUEUE_CAPACITY = 5;
+
+    private static final BlockingQueue<byte[]> queue = new LinkedBlockingQueue<>(QUEUE_CAPACITY);
+    private static final ExecutorService executor = Executors.newFixedThreadPool(NUM_THREADS);
+    private static volatile boolean finished = false;
+
+    public static void main(String[] args) throws Exception {
+        String gzipFilePath = "path/to/your/file.gz";
+
+        CyclicBarrier barrier = new CyclicBarrier(NUM_THREADS, () -> {
+            try {
+                // Remove chunk only after all threads are done
+                queue.take();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+
+        // Start consumer threads
+        for (int i = 0; i < NUM_THREADS; i++) {
+            int threadId = i;
+            executor.submit(() -> processChunks(threadId, barrier));
+        }
+
+        // Start producer
+        readGzipFileChunks(gzipFilePath);
+
+        finished = true;
+        executor.shutdown();
+        executor.awaitTermination(10, TimeUnit.MINUTES);
+        System.out.println("All processing complete.");
+    }
+
+    // Producer: reads GZIP and fills queue with chunks
+    private static void readGzipFileChunks(String filePath) {
+        try (BufferedInputStream bis = new BufferedInputStream(new GZIPInputStream(new FileInputStream(filePath)))) {
+            byte[] buffer = new byte[CHUNK_SIZE];
+            int bytesRead;
+            while ((bytesRead = bis.read(buffer)) != -1) {
+                byte[] chunk = new byte[bytesRead];
+                System.arraycopy(buffer, 0, chunk, 0, bytesRead);
+                queue.put(chunk);
+            }
+        } catch (IOException | InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
+    // Consumer: each thread processes every chunk
+    private static void processChunks(int threadId, CyclicBarrier barrier) {
+        try {
+            while (!finished || !queue.isEmpty()) {
+                byte[] chunk = queue.peek(); // peek so all threads get the same data
+                if (chunk == null) {
+                    Thread.sleep(10);
+                    continue;
+                }
+                callFunctionById(threadId, chunk);
+                barrier.await(); // wait for all threads to finish the chunk
+            }
+        } catch (InterruptedException | BrokenBarrierException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    // Dummy function dispatcher
+    private static void callFunctionById(int id, byte[] chunk) {
+        // You can customize these functions
+        switch (id) {
+            case 0: processChunk0(chunk); break;
+            case 1: processChunk1(chunk); break;
+            case 2: processChunk2(chunk); break;
+            // ...
+            case 11: processChunk11(chunk); break;
+        }
+    }
+
+    // Dummy functions for each thread
+    private static void processChunk0(byte[] chunk) { /* logic here */ }
+    private static void processChunk1(byte[] chunk) { /* logic here */ }
+    private static void processChunk2(byte[] chunk) { /* logic here */ }
+    private static void processChunk11(byte[] chunk) { /* logic here */ }
+}
