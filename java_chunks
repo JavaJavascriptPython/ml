@@ -88,3 +88,78 @@ public class GzipChunkProcessor {
     private static void processChunk2(byte[] chunk) { /* logic here */ }
     private static void processChunk11(byte[] chunk) { /* logic here */ }
 }
+
+
+
+
+
+
+
+private static void processChunk0(byte[] chunk) {
+    System.out.println("Thread 0 processed chunk of size: " + chunk.length);
+}
+
+private static void processChunk1(byte[] chunk) {
+    int count = 0;
+    for (byte b : chunk) {
+        if (b == 'a') count++;
+    }
+    System.out.println("Thread 1 found 'a' " + count + " times");
+}
+
+private static void processChunk2(byte[] chunk) {
+    int sum = 0;
+    for (byte b : chunk) sum += b & 0xFF;
+    System.out.println("Thread 2 calculated byte sum: " + sum);
+}
+
+private static void processChunk3(byte[] chunk) {
+    System.out.println("Thread 3 processed: First byte is " + (chunk.length > 0 ? chunk[0] : "empty"));
+}
+
+private static void processChunk4(byte[] chunk) {
+    System.out.println("Thread 4: sleeping for 10ms to simulate work...");
+    try { Thread.sleep(10); } catch (InterruptedException ignored) {}
+}
+
+private static void processChunk5(byte[] chunk) {
+    long count = chunk.length;
+    System.out.println("Thread 5 counted " + count + " total bytes");
+}
+
+private static void processChunk6(byte[] chunk) {
+    String hex = String.format("%02X", chunk[0]);
+    System.out.println("Thread 6 first byte in hex: " + hex);
+}
+
+private static void processChunk7(byte[] chunk) {
+    int lines = 0;
+    for (byte b : chunk) if (b == '\n') lines++;
+    System.out.println("Thread 7 counted " + lines + " newline characters");
+}
+
+private static void processChunk8(byte[] chunk) {
+    int max = Byte.MIN_VALUE;
+    for (byte b : chunk) if (b > max) max = b;
+    System.out.println("Thread 8 max byte value: " + max);
+}
+
+private static void processChunk9(byte[] chunk) {
+    String preview = new String(chunk, 0, Math.min(10, chunk.length));
+    System.out.println("Thread 9 preview: " + preview);
+}
+
+private static void processChunk10(byte[] chunk) {
+    boolean hasDigit = false;
+    for (byte b : chunk) {
+        if (b >= '0' && b <= '9') {
+            hasDigit = true;
+            break;
+        }
+    }
+    System.out.println("Thread 10 found digit? " + hasDigit);
+}
+
+private static void processChunk11(byte[] chunk) {
+    System.out.println("Thread 11 done processing chunk at " + System.currentTimeMillis());
+}
