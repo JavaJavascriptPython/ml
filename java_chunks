@@ -163,3 +163,37 @@ private static void processChunk10(byte[] chunk) {
 private static void processChunk11(byte[] chunk) {
     System.out.println("Thread 11 done processing chunk at " + System.currentTimeMillis());
 }
+
+
+
+
+
+private static void processChunk0(byte[] chunk) {
+    List<Map<String, String>> extractedRecords = new ArrayList<>();
+
+    try {
+        String data = new String(chunk);
+        String[] lines = data.split("\n");
+
+        for (String line : lines) {
+            if (line.length() < 33) continue; // skip invalid lines
+
+            Map<String, String> record = new HashMap<>();
+            record.put("id", line.substring(0, 12).trim());
+            record.put("date", line.substring(12, 20).trim());
+            record.put("currency", line.substring(20, 23).trim());
+            record.put("amount", line.substring(23, 33).trim());
+
+            extractedRecords.add(record);
+        }
+
+        // Print or process the extracted records
+        System.out.println("Thread 0 extracted " + extractedRecords.size() + " records");
+        // Optional: print one record for debugging
+        if (!extractedRecords.isEmpty()) {
+            System.out.println("Sample: " + extractedRecords.get(0));
+        }
+    } catch (Exception e) {
+        System.err.println("Thread 0 error processing chunk: " + e.getMessage());
+    }
+}
