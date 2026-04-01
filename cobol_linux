@@ -1,0 +1,83 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Getopt::Long;
+
+my $inputfile  = '';
+my $outputfile = '';
+
+# Parse command line arguments
+GetOptions(
+    "inputfile=s"  => \$inputfile,
+    "outputfile=s" => \$outputfile
+) or die "Error in command line arguments\n";
+
+# Validate inputs
+if (!$inputfile || !$outputfile) {
+    die "Usage: perl cobol_analyzer.pl -inputfile <file.cob|file.pco> -outputfile <output.txt>\n";
+}
+
+# Open files
+open(my $in,  '<', $inputfile)  or die "Cannot open input file '$inputfile': $!";
+open(my $out, '>', $outputfile) or die "Cannot open output file '$outputfile': $!";
+
+my $in_working_storage = 0;
+my $in_declare_block   = 0;
+my $line_number        = 0;
+my $issue_count        = 0;
+
+print $out "Analyzing file: $inputfile\n\n";
+
+while (my $line = <$in>) {
+    $line_number++;
+    chomp $line;
+
+    my $upper_line = uc($line);
+
+    # Skip comment lines (COBOL comments usually start with *)
+    next if $upper_line =~ /^\s*\*/;
+
+    # Detect WORKING-STORAGE SECTION
+    if ($upper_line =~ /WORKING-STORAGE\s+SECTION/) {
+        $in_working_storage = 1;
+        next;
+    }
+
+    # Exit working storage if another section starts
+    if ($upper_line =~ /PROCEDURE\s+DIVISION|LINKAGE\s+SECTION|FILE\s+SECTION/) {
+        $in_working_storage = 0;
+        $in_declare_block   = 0;
+    }
+
+    next unless $in_working_storage;
+
+    # Detect BEGIN DECLARE
+    if ($upper_line =~ /BEGIN\s+DECLARE/) {
+        $in_declare_block = 1;
+        next;
+    }
+
+    # Detect END DECLARE
+    if ($upper_line =~ /END\s+DECLARE/) {
+        $in_declare_block = 0;
+        next;
+    }
+
+    next unless $in_declare_block;
+
+    # Check for REDEFINES inside declare block
+    if ($upper_line =~ /\bREDEFINES\b/) {
+        $issue_count++;
+        print $out "Issue $issue_count found at line $line_number:\n";
+        print $out "$line\n\n";
+    }
+}
+
+print $out "--------------------------------------\n";
+print $out "Total Issues Found: $issue_count\n";
+print $out "Analysis completed.\n";
+
+close($in);
+close($out);
+
+print "Analysis completed. Results written to $outputfile\n";
