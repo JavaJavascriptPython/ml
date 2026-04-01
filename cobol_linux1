@@ -1,0 +1,121 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Getopt::Long;
+
+my $inputfile  = '';
+my $outputfile = '';
+
+GetOptions(
+    "inputfile=s"  => \$inputfile,
+    "outputfile=s" => \$outputfile
+) or die "Error in command line arguments\n";
+
+if (!$inputfile || !$outputfile) {
+    die "Usage: perl cobol_analyzer.pl -inputfile <file> -outputfile <output>\n";
+}
+
+open(my $in,  '<', $inputfile)  or die "Cannot open input file '$inputfile': $!";
+open(my $out, '>', $outputfile) or die "Cannot open output file '$outputfile': $!";
+
+my $line_number = 0;
+my $issue_count = 0;
+
+my $in_procedure_division = 0;
+my $in_sql_block          = 0;
+my $in_where_block        = 0;
+
+my @history_lines;
+my $where_buffer = "";
+my $where_start_line = 0;
+
+print $out "Analyzing file: $inputfile\n\n";
+
+while (my $line = <$in>) {
+    $line_number++;
+    chomp $line;
+
+    my $upper_line = uc($line);
+
+    # Skip COBOL comment lines (* in column 7 or starting)
+    next if $upper_line =~ /^\s*\*/;
+
+    # Store history for MOVE check
+    push @history_lines, $upper_line;
+
+    # Detect PROCEDURE DIVISION
+    if ($upper_line =~ /PROCEDURE\s+DIVISION/) {
+        $in_procedure_division = 1;
+        next;
+    }
+
+    next unless $in_procedure_division;
+
+    # Detect EXEC SQL
+    if ($upper_line =~ /EXEC\s+SQL/) {
+        $in_sql_block = 1;
+        next;
+    }
+
+    # Detect END-EXEC
+    if ($upper_line =~ /END-EXEC/) {
+        # Process WHERE buffer before closing SQL block
+        if ($where_buffer ne "") {
+            check_where_variables($where_buffer, $where_start_line);
+        }
+
+        $in_sql_block = 0;
+        $in_where_block = 0;
+        $where_buffer = "";
+        next;
+    }
+
+    next unless $in_sql_block;
+
+    # Ignore SQL comments (-- comment)
+    next if $upper_line =~ /^\s*--/;
+
+    # Detect WHERE start
+    if ($upper_line =~ /\bWHERE\b/) {
+        $in_where_block = 1;
+        $where_start_line = $line_number;
+    }
+
+    # Capture multiline WHERE
+    if ($in_where_block) {
+        $where_buffer .= " " . $upper_line;
+    }
+}
+
+# Function to check MOVE before WHERE
+sub check_where_variables {
+    my ($where_text, $where_line) = @_;
+
+    my @vars = ($where_text =~ /:([A-Z0-9-]+)/g);
+
+    foreach my $var (@vars) {
+        my $found_move = 0;
+
+        foreach my $hist_line (@history_lines) {
+            if ($hist_line =~ /\bMOVE\b.*\bTO\b\s+$var\b/) {
+                $found_move = 1;
+                last;
+            }
+        }
+
+        if (!$found_move) {
+            $issue_count++;
+            print $out "Issue $issue_count found near line $where_line:\n";
+            print $out "Host variable :$var used in WHERE without prior MOVE statement\n\n";
+        }
+    }
+}
+
+print $out "--------------------------------------\n";
+print $out "Total Issues Found: $issue_count\n";
+print $out "Analysis completed.\n";
+
+close($in);
+close($out);
+
+print "Analysis completed. Results written to $outputfile\n";
