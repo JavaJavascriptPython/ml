@@ -1,0 +1,70 @@
+# New variables for INTO rule
+my $capture_into_block = 0;
+my $into_buffer = "";
+my $into_line = 0;
+
+seek($in, 0, 0);  # Go to start of file again
+$line_number = 0;
+
+my @all_lines = <$in>;  # Store full file for downward search
+
+for (my $i = 0; $i <= $#all_lines; $i++) {
+    my $line = $all_lines[$i];
+    $line_number = $i + 1;
+    chomp $line;
+
+    my $upper_line = uc($line);
+
+    # Detect EXEC SQL
+    if ($upper_line =~ /EXEC\s+SQL/) {
+        $capture_into_block = 1;
+        $into_buffer = "";
+        next;
+    }
+
+    # Detect END-EXEC
+    if ($upper_line =~ /END-EXEC/) {
+        if ($into_buffer ne "") {
+            check_into_variables($into_buffer, $line_number, $i);
+        }
+        $capture_into_block = 0;
+        next;
+    }
+
+    next unless $capture_into_block;
+
+    # Ignore SQL comments
+    next if $upper_line =~ /^\s*--/;
+
+    # Capture INTO multiline
+    if ($upper_line =~ /\bINTO\b/ || $into_buffer ne "") {
+        $into_buffer .= " " . $upper_line;
+    }
+}
+
+# Function to check MOVE after INTO
+sub check_into_variables {
+    my ($into_text, $line_no, $index) = @_;
+
+    my @vars = ($into_text =~ /:([A-Z0-9-]+)/g);
+
+    foreach my $var (@vars) {
+        my $found_move = 0;
+
+        # Search DOWNWARD for MOVE var TO ...
+        for (my $j = $index + 1; $j <= $#all_lines; $j++) {
+            my $search_line = uc($all_lines[$j]);
+
+            if ($search_line =~ /\bMOVE\s+$var\s+\bTO\b/) {
+                $found_move = 1;
+                last;
+            }
+        }
+
+        if (!$found_move) {
+            $issue_count++;
+            print $out "Issue $issue_count found near line $line_no:\n";
+            print $out "Host variable :$var in INTO not used in MOVE after SELECT\n\n";
+        }
+    }
+}
