@@ -1,0 +1,25 @@
+#!/bin/bash
+
+input_file="input.txt"
+output_file="ports.txt"
+
+# Step 1: Extract ports without ESTABLISHED and save only port numbers
+awk '
+/Port:/ {port=$2; est=0}
+/ESTABLISHED/ {est=1}
+/^$/ {if (!est && port) print port}
+END {if (!est && port) print port}
+' "$input_file" > "$output_file"
+
+echo "Filtered ports saved in $output_file"
+
+# Step 2: While loop on output file
+while read port
+do
+    echo "Processing Port: $port"
+    
+    # 👉 You can add your logic here
+    # Example:
+    # netstat -an | grep "$port"
+
+done < "$output_file"
