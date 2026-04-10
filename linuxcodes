@@ -3,37 +3,44 @@
 input_file="input.txt"
 output_file="ports.txt"
 
-# Step 1: Extract ports without ESTABLISHED and save only port numbers
-awk '
-/Port:/ {port=$2; est=0}
-/ESTABLISHED/ {est=1}
-/^$/ {if (!est && port) print port}
-END {if (!est && port) print port}
-' "$input_file" > "$output_file"
+port=""
+has_established=0
+
+> "$output_file"   # clear output file
+
+while IFS= read -r line
+do
+    if [[ $line == Port:* ]]; then
+        # Before switching, check previous port
+        if [[ -n $port && $has_established -eq 0 ]]; then
+            echo "$port" >> "$output_file"
+        fi
+
+        # Extract new port
+        port=$(echo "$line" | cut -d':' -f2)
+        has_established=0
+
+    elif [[ $line == *ESTABLISHED* ]]; then
+        has_established=1
+    fi
+
+done < "$input_file"
+
+# Check last block
+if [[ -n $port && $has_established -eq 0 ]]; then
+    echo "$port" >> "$output_file"
+fi
 
 echo "Filtered ports saved in $output_file"
 
-# Step 2: While loop on output file
+
+# ✅ While loop on output file
 while read port
 do
     echo "Processing Port: $port"
     
-    # 👉 You can add your logic here
+    # Your logic here
     # Example:
-    # netstat -an | grep "$port"
+    # grep "$port" /fns/I/sysout/*
 
 done < "$output_file"
-
-
-
-awk '
-/Port:/ {
-    if (port && !est) print port
-    port=$2
-    est=0
-}
-/ESTABLISHED/ { est=1 }
-END {
-    if (port && !est) print port
-}
-' input.txt > ports.txt
