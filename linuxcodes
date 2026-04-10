@@ -23,3 +23,17 @@ do
     # netstat -an | grep "$port"
 
 done < "$output_file"
+
+
+
+awk '
+/Port:/ {
+    if (port && !est) print port
+    port=$2
+    est=0
+}
+/ESTABLISHED/ { est=1 }
+END {
+    if (port && !est) print port
+}
+' input.txt > ports.txt
