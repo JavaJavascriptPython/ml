@@ -1,0 +1,97 @@
+#!/bin/bash
+
+while true
+do
+    echo "Enter Port Number:"
+    read port
+
+    echo "Enter Gateway Name:"
+    read gateway
+
+    echo "-----------------------------------"
+    echo "Checking in sysout files..."
+
+    grep "$port" *sysout* > port.out 2>/dev/null
+
+    if [ -s port.out ]; then
+        echo "Port found in sysout."
+    else
+        echo "Port not found in sysout."
+    fi
+
+    echo "-----------------------------------"
+    echo "Checking in /etc/services..."
+
+    service=$(grep -w "$port" /etc/services | awk '{print $1}')
+
+    if [ ! -z "$service" ]; then
+        echo "Port $port is assigned to service: $service"
+    else
+        echo "Port not listed in /etc/services."
+    fi
+
+    echo "-----------------------------------"
+    echo "Checking if gateway process is running..."
+
+    pid=$(ps -ef | grep "$gateway" | grep -v grep | awk '{print $2}')
+
+    if [ ! -z "$pid" ]; then
+        echo "Gateway instance is running with PID: $pid"
+
+        while true
+        do
+            echo "Do you want to kill and restart the instance? (yes/no)"
+            read choice
+
+            if [ "$choice" == "yes" ]; then
+                echo "Killing process $pid..."
+                kill -9 $pid
+
+                echo "Restarting instance..."
+                echo "Enter instance number:"
+                read instance
+
+                mr.shstart -instance "$instance"
+
+                echo "Waiting for 10 seconds..."
+                sleep 10
+
+                echo "Re-checking..."
+
+                # Re-run checks
+                grep "$port" *sysout* > port.out 2>/dev/null
+                if [ -s port.out ]; then
+                    echo "Port found in sysout."
+                else
+                    echo "Port not found in sysout."
+                fi
+
+                service=$(grep -w "$port" /etc/services | awk '{print $1}')
+                if [ ! -z "$service" ]; then
+                    echo "Port $port is assigned to service: $service"
+                else
+                    echo "Port not listed in /etc/services."
+                fi
+
+                pid=$(ps -ef | grep "$gateway" | grep -v grep | awk '{print $2}')
+                if [ ! -z "$pid" ]; then
+                    echo "Gateway instance is running with PID: $pid"
+                else
+                    echo "Gateway is not running."
+                fi
+
+            elif [ "$choice" == "no" ]; then
+                echo "Restart skipped. Starting over..."
+                break
+            else
+                echo "Invalid input. Please enter yes or no."
+            fi
+        done
+
+    else
+        echo "Gateway is not running."
+    fi
+
+    echo "-----------------------------------"
+    echo "Starting new check..."
+done
