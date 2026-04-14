@@ -161,3 +161,91 @@ public class Account {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+package service;
+
+import model.Account;
+import org.springframework.stereotype.Service;
+import repository.AccountRepository;
+
+import java.util.List;
+
+@Service
+public class AccountService {
+
+    private final AccountRepository accountRepository;
+
+    public AccountService(AccountRepository accountRepository) {
+        this.accountRepository = accountRepository;
+    }
+
+    // ✅ Called by GET /all
+    public List<Account> findAll() {
+        return accountRepository.findAll();
+    }
+
+    // ✅ Called by GET /{accountNumber}
+    public Account findByAccountNumber(String accountNumber) {
+        return accountRepository.findByAccountNumber(accountNumber)
+                .orElseThrow(() -> new RuntimeException("Account not found: " + accountNumber));
+    }
+
+    // ✅ Called by POST /create
+    public Account createAccount(Account account) {
+        return accountRepository.save(account);
+    }
+
+    // ✅ Called by DELETE /{accountNumber}
+    public void delete(String accountNumber) {
+        Account account = findByAccountNumber(accountNumber); // reuse method above
+        accountRepository.delete(account);
+    }
+
+    // ✅ Called by PUT /{accountNumber}/deposit
+    public Account deposit(String accountNumber, Double amount) {
+        Account account = findByAccountNumber(accountNumber);
+
+        if (amount <= 0) {
+            throw new IllegalArgumentException("Deposit amount must be positive");
+        }
+
+        account.setBalance(account.getBalance() + amount);
+        return accountRepository.save(account);
+    }
+
+    // ✅ Called by POST /transfer
+    public void transfer(String from, String to, Double amount) {
+        Account sender = findByAccountNumber(from);
+
+        if (sender.getBalance() < amount) {
+            throw new RuntimeException("Insufficient funds");
+        }
+
+        Account receiver = findByAccountNumber(to);
+
+        sender.setBalance(sender.getBalance() - amount);
+        receiver.setBalance(receiver.getBalance() + amount);
+
+        accountRepository.save(sender);
+        accountRepository.save(receiver);
+    }
+}
+
+
