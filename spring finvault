@@ -36,3 +36,26 @@ public class AccountController {
         return "Account " + accountNumber + " closed.";
     }
 }
+
+
+
+
+
+// This is the DTO for a transfer request
+public class TransferRequest {
+    private String fromAccount;
+    private String toAccount;
+    private Double amount;
+    // getters, setters
+}
+// In Controller
+@PostMapping("/transfer")
+public String transfer(@RequestBody TransferRequest request) {
+    // Spring automatically converts incoming JSON → TransferRequest object
+    accountService.transfer(
+        request.getFromAccount(),
+        request.getToAccount(),
+        request.getAmount()
+    );
+    return "Transfer successful";
+}
