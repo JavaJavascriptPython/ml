@@ -1,0 +1,38 @@
+@RestController
+@RequestMapping("/api/accounts")
+public class AccountController {
+
+    // GET /api/accounts/all
+    @GetMapping("/all")
+    public List<Account> getAllAccounts() {
+        return accountService.findAll();
+    }
+
+    // GET /api/accounts/ACC001
+    @GetMapping("/{accountNumber}")           // ← @PathVariable usage here
+    public Account getAccount(@PathVariable String accountNumber) {
+        return accountService.findByAccountNumber(accountNumber);
+    }
+
+    // POST /api/accounts/create
+    @PostMapping("/create")
+    public Account createAccount(@RequestBody Account account) {  // ← @RequestBody
+        return accountService.createAccount(account);
+    }
+
+    // PUT /api/accounts/ACC001/deposit?amount=5000
+    @PutMapping("/{accountNumber}/deposit")
+    public Account deposit(
+        @PathVariable String accountNumber,           // ← from URL path
+        @RequestParam Double amount                   // ← from ?amount=5000
+    ) {
+        return accountService.deposit(accountNumber, amount);
+    }
+
+    // DELETE /api/accounts/ACC001
+    @DeleteMapping("/{accountNumber}")
+    public String deleteAccount(@PathVariable String accountNumber) {
+        accountService.delete(accountNumber);
+        return "Account " + accountNumber + " closed.";
+    }
+}
