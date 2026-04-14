@@ -59,3 +59,51 @@ public String transfer(@RequestBody TransferRequest request) {
     );
     return "Transfer successful";
 }
+
+
+
+
+
+
+
+
+@Service   // ← Tells Spring: manage this as a bean + signals "this is business logic"
+public class AccountService {
+
+    private final AccountRepository accountRepository;
+
+    public AccountService(AccountRepository accountRepository) {
+        this.accountRepository = accountRepository;
+    }
+
+    public Account deposit(String accountNumber, Double amount) {
+        Account account = accountRepository.findByAccountNumber(accountNumber)
+            .orElseThrow(() -> new RuntimeException("Account not found"));
+
+        if (amount <= 0) {
+            throw new IllegalArgumentException("Deposit amount must be positive");
+        }
+
+        account.setBalance(account.getBalance() + amount);
+        return accountRepository.save(account);
+    }
+
+    public void transfer(String from, String to, Double amount) {
+        // Business rule: no negative transfers, check balance, etc.
+        Account sender = accountRepository.findByAccountNumber(from)
+            .orElseThrow(() -> new RuntimeException("Sender not found"));
+
+        if (sender.getBalance() < amount) {
+            throw new RuntimeException("Insufficient funds");
+        }
+
+        Account receiver = accountRepository.findByAccountNumber(to)
+            .orElseThrow(() -> new RuntimeException("Receiver not found"));
+
+        sender.setBalance(sender.getBalance() - amount);
+        receiver.setBalance(receiver.getBalance() + amount);
+
+        accountRepository.save(sender);
+        accountRepository.save(receiver);
+    }
+}
