@@ -1,0 +1,85 @@
+using System;
+using System.IO;
+using System.Text;
+using Org.BouncyCastle.Crypto;
+using Org.BouncyCastle.Crypto.Encodings;
+using Org.BouncyCastle.Crypto.Engines;
+using Org.BouncyCastle.Crypto.Digests;
+using Org.BouncyCastle.OpenSsl;
+
+public class RsaDecryptor
+{
+    public static string ReadAndDecrypt(string filePath, string privateKeyPemPath)
+    {
+        // ───────────────────────────────────────────
+        // STEP 1: Read the file and get the 2nd line
+        // ───────────────────────────────────────────
+        string[] lines = File.ReadAllLines(filePath);
+
+        if (lines.Length < 2)
+            throw new Exception("File does not have a second line.");
+
+        string secondLine = lines[1].Trim();
+
+        // ───────────────────────────────────────────
+        // STEP 2: Base64 Decode
+        // ───────────────────────────────────────────
+        byte[] encryptedBytes = Convert.FromBase64String(secondLine);
+
+        // ───────────────────────────────────────────
+        // STEP 3: Load PKCS#8 PEM Private Key
+        // ───────────────────────────────────────────
+        AsymmetricKeyParameter privateKey = LoadPrivateKeyFromPem(privateKeyPemPath);
+
+        // ───────────────────────────────────────────
+        // STEP 4: Decrypt — OAEP SHA-256 + MGF1 SHA-1
+        // ───────────────────────────────────────────
+        byte[] decryptedBytes = Decrypt(encryptedBytes, privateKey);
+
+        return Encoding.UTF8.GetString(decryptedBytes);
+    }
+
+    // ─────────────────────────────────────────────────────
+    // Load PKCS#8 PEM Private Key using BouncyCastle
+    // Supports both:
+    //   "-----BEGIN PRIVATE KEY-----"          (PKCS#8 unencrypted)
+    //   "-----BEGIN ENCRYPTED PRIVATE KEY-----" (PKCS#8 encrypted)
+    // ─────────────────────────────────────────────────────
+    private static AsymmetricKeyParameter LoadPrivateKeyFromPem(string pemFilePath)
+    {
+        using (var reader = new StreamReader(pemFilePath))
+        {
+            var pemReader = new PemReader(reader);
+            object obj = pemReader.ReadObject();
+
+            // PKCS#8 unencrypted → returns AsymmetricKeyParameter directly
+            if (obj is AsymmetricKeyParameter)
+                return (AsymmetricKeyParameter)obj;
+
+            // PKCS#8 encrypted → returns AsymmetricCipherKeyPair
+            if (obj is AsymmetricCipherKeyPair)
+                return ((AsymmetricCipherKeyPair)obj).Private;
+
+            throw new Exception("Could not read private key from PEM file. " +
+                                "Ensure it is PKCS#8 format.");
+        }
+    }
+
+    // ─────────────────────────────────────────────────────
+    // Decrypt using OAEP SHA-256 + MGF1 SHA-1
+    // Matches Java: RSA/ECB/OAEPWithSHA-256AndMGF1Padding
+    // ─────────────────────────────────────────────────────
+    private static byte[] Decrypt(byte[] encryptedData, AsymmetricKeyParameter privateKey)
+    {
+        var engine = new OaepEncoding(
+            new RsaEngine(),
+            new Sha256Digest(),   // OAEP hash → SHA-256
+            new Sha1Digest(),     // MGF1 hash → SHA-1 (matches Java default)
+            null
+        );
+
+        engine.Init(false, privateKey); // false = decrypt
+
+        return engine.ProcessBlock(encryptedData, 0, encryptedData.Length);
+    }
+}
