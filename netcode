@@ -83,3 +83,188 @@ public class RsaDecryptor
         return engine.ProcessBlock(encryptedData, 0, encryptedData.Length);
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+using System;
+using System.IO;
+using System.Text;
+using System.Security.Cryptography;
+using Org.BouncyCastle.Crypto;
+using Org.BouncyCastle.Crypto.Encodings;
+using Org.BouncyCastle.Crypto.Engines;
+using Org.BouncyCastle.Crypto.Digests;
+using Org.BouncyCastle.Crypto.Parameters;
+using Org.BouncyCastle.OpenSsl;
+
+public class FileDecryptor
+{
+    // ─────────────────────────────────────────────
+    // MAIN METHOD — orchestrates all 3 steps
+    // ─────────────────────────────────────────────
+    public static void DecryptAll(
+        string keyFilePath,         // File with line1=hash, line2=key+iv
+        string privateKeyPemPath,   // PKCS#8 private key .pem
+        string publicKeyPemPath,    // Public key .pem
+        string encryptedFilePath,   // AES encrypted file
+        string outputFilePath)      // Where to save decrypted output
+    {
+        // ── Read key file ──────────────────────────
+        string[] lines = File.ReadAllLines(keyFilePath);
+        if (lines.Length < 2)
+            throw new Exception("Key file must have at least 2 lines.");
+
+        // ── STEP 1: Decrypt Line 1 (Hash) using Public Key ──
+        Console.WriteLine("Step 1: Decrypting hash using public key...");
+        byte[] encryptedHash  = Convert.FromBase64String(lines[0].Trim());
+        AsymmetricKeyParameter publicKey = LoadPublicKeyFromPem(publicKeyPemPath);
+        byte[] decryptedHash  = DecryptWithPublicKey(encryptedHash, publicKey);
+        string hashValue      = Convert.ToBase64String(decryptedHash);
+        Console.WriteLine("Hash (Base64): " + hashValue);
+
+        // ── STEP 2: Decrypt Line 2 (Key+IV) using Private Key ──
+        Console.WriteLine("\nStep 2: Decrypting Key+IV using private key...");
+        byte[] encryptedKeyIv  = Convert.FromBase64String(lines[1].Trim());
+        AsymmetricKeyParameter privateKey = LoadPrivateKeyFromPem(privateKeyPemPath);
+        byte[] decryptedKeyIv  = DecryptWithPrivateKey(encryptedKeyIv, privateKey);
+
+        // Split into AES Key (32 bytes) and IV (16 bytes)
+        // Total = 48 bytes → Key=first 32, IV=last 16
+        byte[] aesKey = new byte[32]; // 256-bit AES key
+        byte[] aesIv  = new byte[16]; // 128-bit IV
+        Array.Copy(decryptedKeyIv, 0,  aesKey, 0, 32);
+        Array.Copy(decryptedKeyIv, 32, aesIv,  0, 16);
+        Console.WriteLine("AES Key (Hex): " + BitConverter.ToString(aesKey));
+        Console.WriteLine("AES IV  (Hex): " + BitConverter.ToString(aesIv));
+
+        // ── STEP 3: AES Decrypt the encrypted file ──
+        Console.WriteLine("\nStep 3: Decrypting file using AES Key+IV...");
+        byte[] encryptedFileBytes = File.ReadAllBytes(encryptedFilePath);
+        byte[] decryptedFileBytes = AesDecrypt(encryptedFileBytes, aesKey, aesIv);
+
+        // Save output
+        File.WriteAllBytes(outputFilePath, decryptedFileBytes);
+        Console.WriteLine("Decrypted file saved to: " + outputFilePath);
+
+        // Print as text if readable
+        Console.WriteLine("Content: " + Encoding.UTF8.GetString(decryptedFileBytes));
+    }
+
+    // ─────────────────────────────────────────────
+    // STEP 1: RSA Decrypt with PUBLIC Key (raw)
+    // Used for verifying hash encrypted by private key
+    // ─────────────────────────────────────────────
+    private static byte[] DecryptWithPublicKey(byte[] data, AsymmetricKeyParameter publicKey)
+    {
+        var engine = new Pkcs1Encoding(new RsaEngine());
+        engine.Init(false, publicKey); // false = decrypt/verify
+        return engine.ProcessBlock(data, 0, data.Length);
+    }
+
+    // ─────────────────────────────────────────────
+    // STEP 2: RSA Decrypt with PRIVATE Key
+    // OAEP SHA-256 + MGF1 SHA-1 (matches Java)
+    // ─────────────────────────────────────────────
+    private static byte[] DecryptWithPrivateKey(byte[] data, AsymmetricKeyParameter privateKey)
+    {
+        var engine = new OaepEncoding(
+            new RsaEngine(),
+            new Sha256Digest(),  // OAEP → SHA-256
+            new Sha1Digest(),    // MGF1 → SHA-1 (Java default)
+            null
+        );
+        engine.Init(false, privateKey);
+        return engine.ProcessBlock(data, 0, data.Length);
+    }
+
+    // ─────────────────────────────────────────────
+    // STEP 3: AES-256-CBC Decrypt
+    // ─────────────────────────────────────────────
+    private static byte[] AesDecrypt(byte[] encryptedData, byte[] key, byte[] iv)
+    {
+        using (var aes = new RijndaelManaged())
+        {
+            aes.Key     = key;
+            aes.IV      = iv;
+            aes.Mode    = CipherMode.CBC;
+            aes.Padding = PaddingMode.PKCS7;
+
+            using (var decryptor = aes.CreateDecryptor())
+            using (var ms = new MemoryStream(encryptedData))
+            using (var cs = new CryptoStream(ms, decryptor, CryptoStreamMode.Read))
+            using (var output = new MemoryStream())
+            {
+                cs.CopyTo(output);
+                return output.ToArray();
+            }
+        }
+    }
+
+    // ─────────────────────────────────────────────
+    // Load PUBLIC Key from PEM
+    // Supports: "-----BEGIN PUBLIC KEY-----"
+    // ─────────────────────────────────────────────
+    private static AsymmetricKeyParameter LoadPublicKeyFromPem(string pemFilePath)
+    {
+        using (var reader = new StreamReader(pemFilePath))
+        {
+            var pemReader = new PemReader(reader);
+            object obj = pemReader.ReadObject();
+
+            if (obj is AsymmetricKeyParameter)
+                return (AsymmetricKeyParameter)obj;
+
+            if (obj is AsymmetricCipherKeyPair)
+                return ((AsymmetricCipherKeyPair)obj).Public;
+
+            throw new Exception("Could not read public key from PEM.");
+        }
+    }
+
+    // ─────────────────────────────────────────────
+    // Load PRIVATE Key from PEM (PKCS#8)
+    // Supports: "-----BEGIN PRIVATE KEY-----"
+    // ─────────────────────────────────────────────
+    private static AsymmetricKeyParameter LoadPrivateKeyFromPem(string pemFilePath)
+    {
+        using (var reader = new StreamReader(pemFilePath))
+        {
+            var pemReader = new PemReader(reader);
+            object obj = pemReader.ReadObject();
+
+            if (obj is AsymmetricKeyParameter)
+                return (AsymmetricKeyParameter)obj;
+
+            if (obj is AsymmetricCipherKeyPair)
+                return ((AsymmetricCipherKeyPair)obj).Private;
+
+            throw new Exception("Could not read private key from PEM.");
+        }
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
