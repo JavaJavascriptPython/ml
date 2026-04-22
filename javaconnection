@@ -1,0 +1,52 @@
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.Statement;
+
+public class TestOracleConnection {
+    public static void main(String[] args) {
+        if (args.length < 2) {
+            System.out.println("Usage: java TestOracleConnection <username> <password>");
+            return;
+        }
+
+        String username = args[0];
+        String password = args[1];
+
+        String url = "jdbc:oracle:thin:@w013bans";
+
+        try {
+            System.out.println("Connecting to DB...");
+            System.out.println("User: " + username);
+            System.out.println("Password length: " + password.length());
+            System.out.println("URL: " + url);
+
+            Connection conn = DriverManager.getConnection(url, username, password);
+
+            System.out.println("✅ Connected successfully!");
+
+            Statement stmt = conn.createStatement();
+            ResultSet rs = stmt.executeQuery(
+                "SELECT sys_context('USERENV','DB_NAME'), " +
+                "sys_context('USERENV','SERVICE_NAME'), " +
+                "sys_context('USERENV','SERVER_HOST') FROM dual"
+            );
+
+            if (rs.next()) {
+                System.out.println("DB_NAME: " + rs.getString(1));
+                System.out.println("SERVICE_NAME: " + rs.getString(2));
+                System.out.println("SERVER_HOST: " + rs.getString(3));
+            }
+
+            rs.close();
+            stmt.close();
+            conn.close();
+
+        } catch (Exception e) {
+            System.out.println("❌ Connection failed:");
+            e.printStackTrace();
+        }
+    }
+}
+
+
