@@ -1,0 +1,45 @@
+use strict;
+use warnings;
+
+my %jobs;
+
+while (<>) {
+    chomp;
+
+    # Example line:
+    # Time jobname:job jobid:113 status:started
+
+    if (/^(.*?)\s+jobname:(\S+)\s+jobid:(\d+)\s+status:(\S+)/) {
+        my ($time, $jobname, $jobid, $status) = ($1, $2, $3, $4);
+
+        $jobs{$jobid}{jobname} = $jobname;
+
+        # Count occurrences to filter later
+        $jobs{$jobid}{count}{$status}++;
+
+        # Store timestamps (only first occurrence)
+        $jobs{$jobid}{$status} //= $time;
+    }
+}
+
+# Print header
+print "Job,Start,Running,End\n";
+
+foreach my $jobid (sort keys %jobs) {
+
+    my $job = $jobs{$jobid};
+
+    # Skip jobs with multiple started or success entries
+    next if ($job->{count}{started} // 0) != 1;
+    next if ($job->{count}{success} // 0) != 1;
+
+    # Optional: ensure running exists only once
+    next if ($job->{count}{running} // 0) > 1;
+
+    print join(",",
+        $job->{jobname},
+        $job->{started} // '',
+        $job->{running} // '',
+        $job->{success} // ''
+    ), "\n";
+}
