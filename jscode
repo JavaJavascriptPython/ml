@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Job Timeline</title>
+
+  <!-- ECharts CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js"></script>
+</head>
+
+<body>
+  <h2>Job Timeline Chart</h2>
+  <div id="chart" style="width: 100%; height: 500px;"></div>
+
+<script>
+
+// ===== STEP 1: Paste your CSV here =====
+const csvData = `
+Job Name,Start Time,End Time
+Job A,01:00:00,03:30:00
+Job B,02:15:00,05:00:00
+Job C,06:00:00,09:00:00
+`;
+
+
+// ===== STEP 2: Convert CSV → JSON =====
+function csvToJson(csv) {
+  const lines = csv.trim().split("\n");
+  const headers = lines[0].split(",");
+
+  return lines.slice(1).map(line => {
+    const values = line.split(",");
+    let obj = {};
+    headers.forEach((h, i) => {
+      obj[h.trim()] = values[i].trim();
+    });
+    return obj;
+  });
+}
+
+const jobs = csvToJson(csvData);
+
+
+// ===== STEP 3: Convert time → seconds =====
+function toSeconds(time) {
+  const [h, m, s] = time.split(":").map(Number);
+  return h * 3600 + m * 60 + s;
+}
+
+
+// ===== STEP 4: Prepare chart data =====
+const chartData = jobs.map(job => {
+  const start = toSeconds(job["Start Time"]);
+  const end = toSeconds(job["End Time"]);
+
+  return {
+    name: job["Job Name"],
+    value: [job["Job Name"], start, end]
+  };
+});
+
+
+// ===== STEP 5: Create chart =====
+const chart = echarts.init(document.getElementById('chart'));
+
+const option = {
+  tooltip: {
+    formatter: function(params) {
+      const [name, start, end] = params.value;
+      return `${name}<br/>Start: ${start}s<br/>End: ${end}s`;
+    }
+  },
+
+  xAxis: {
+    type: 'value',
+    min: 3600,    // 01:00:00
+    max: 61200,   // 17:00:00
+
+    axisLabel: {
+      formatter: function(value) {
+        let h = Math.floor(value / 3600);
+        let m = Math.floor((value % 3600) / 60);
+        let s = value % 60;
+        return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+      }
+    }
+  },
+
+  yAxis: {
+    type: 'category',
+    data: jobs.map(j => j["Job Name"])
+  },
+
+  series: [{
+    type: 'custom',
+
+    renderItem: function(params, api) {
+      const category = api.value(0);
+
+      const start = api.coord([api.value(1), category]);
+      const end = api.coord([api.value(2), category]);
+
+      const height = api.size([0, 1])[1] * 0.6;
+
+      return {
+        type: 'rect',
+        shape: {
+          x: start[0],
+          y: start[1] - height / 2,
+          width: end[0] - start[0],
+          height: height
+        },
+        style: api.style()
+      };
+    },
+
+    encode: {
+      x: [1, 2],
+      y: 0
+    },
+
+    data: chartData
+  }]
+};
+
+chart.setOption(option);
+
+</script>
+</body>
+</html>
