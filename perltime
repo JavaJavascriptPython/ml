@@ -1,0 +1,116 @@
+use strict;
+use warnings;
+
+my %active;        # jobid -> current run info
+my @runs;          # all completed runs
+
+# Convert HH:MM:SS → seconds
+sub to_seconds {
+    my ($t) = @_;
+    my ($h, $m, $s) = split /:/, $t;
+    return $h*3600 + $m*60 + $s;
+}
+
+# Convert seconds → HH:MM:SS
+sub to_time {
+    my ($sec) = @_;
+    my $h = int($sec / 3600);
+    $sec %= 3600;
+    my $m = int($sec / 60);
+    my $s = $sec % 60;
+    return sprintf("%02d:%02d:%02d", $h, $m, $s);
+}
+
+while (<>) {
+    chomp;
+
+    # Example:
+    # 10:00:01 jobname:A jobid:1 status:started
+
+    if (/^(\S+)\s+jobname:(\S+)\s+jobid:(\d+)\s+status:(\S+)/) {
+        my ($time, $jobname, $jobid, $status) = ($1, $2, $3, $4);
+
+        if ($status eq 'started') {
+            $active{$jobid} = {
+                jobname => $jobname,
+                start   => $time,
+                running => '',
+            };
+        }
+        elsif ($status eq 'running') {
+            if (exists $active{$jobid}) {
+                $active{$jobid}{running} = $time;
+            }
+        }
+        elsif ($status eq 'success') {
+            if (exists $active{$jobid}) {
+                my $run = $active{$jobid};
+                $run->{success} = $time;
+
+                push @runs, $run;
+
+                delete $active{$jobid};
+            }
+        }
+    }
+}
+
+# -------------------------
+# OUTPUT 1: Job details
+# -------------------------
+print "Job,Start,Running,Success\n";
+
+foreach my $r (@runs) {
+    print join(",",
+        $r->{jobname},
+        $r->{start}   || '',
+        $r->{running} || '',
+        $r->{success} || ''
+    ), "\n";
+}
+
+# -------------------------
+# Build intervals for idle detection
+# -------------------------
+my @intervals;
+
+foreach my $r (@runs) {
+    next unless $r->{start} && $r->{success};
+
+    push @intervals, {
+        start => to_seconds($r->{start}),
+        end   => to_seconds($r->{success})
+    };
+}
+
+# Sort intervals
+@intervals = sort { $a->{start} <=> $b->{start} } @intervals;
+
+# Merge intervals
+my @merged;
+
+foreach my $int (@intervals) {
+    if (!@merged || $int->{start} > $merged[-1]{end}) {
+        push @merged, { %$int };
+    } else {
+        $merged[-1]{end} = $int->{end}
+            if $int->{end} > $merged[-1]{end};
+    }
+}
+
+# -------------------------
+# OUTPUT 2: Idle times
+# -------------------------
+print "\nIdle periods (>60 sec):\n";
+
+for (my $i = 0; $i < @merged - 1; $i++) {
+    my $gap = $merged[$i+1]{start} - $merged[$i]{end};
+
+    if ($gap > 60) {
+        print "Gap from ",
+              to_time($merged[$i]{end}),
+              " to ",
+              to_time($merged[$i+1]{start}),
+              " (", $gap, " sec)\n";
+    }
+}
