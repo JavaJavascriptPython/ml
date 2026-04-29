@@ -1,0 +1,44 @@
+use strict;
+use warnings;
+
+# Open sorted input using Linux sort (by Start column = column 2)
+open(my $fh, "-|", "sort -t, -k2,2n input.csv") or die "Cannot run sort: $!";
+
+my $header = <$fh>;   # skip header
+
+my ($curr_start, $curr_end);
+
+print "IdleStart,IdleEnd,Duration\n";
+
+while (<$fh>) {
+    chomp;
+    my ($job, $start, $running, $end) = split /,/;
+
+    next unless defined $start && defined $end && $start ne '' && $end ne '';
+
+    $start += 0;
+    $end   += 0;
+
+    # First row initialization
+    if (!defined $curr_start) {
+        $curr_start = $start;
+        $curr_end   = $end;
+        next;
+    }
+
+    if ($start <= $curr_end) {
+        # Overlapping → extend interval
+        $curr_end = $end if $end > $curr_end;
+    } else {
+        # GAP FOUND
+        my $gap = $start - $curr_end;
+
+        print join(",", $curr_end, $start, $gap), "\n";
+
+        # Reset interval
+        $curr_start = $start;
+        $curr_end   = $end;
+    }
+}
+
+close $fh;
