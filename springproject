@@ -1,0 +1,296 @@
+finvault/
+├── pom.xml
+└── src/main/java/com/finvault/
+    ├── FinVaultApplication.java
+    ├── config/
+    │   └── SQLiteDialect.java       ← custom dialect, no library needed
+    ├── controller/
+    │   └── AccountController.java
+    ├── service/
+    │   └── AccountService.java
+    ├── repository/
+    │   └── AccountRepository.java
+    ├── model/
+    │   └── Account.java             ← manual getters/setters, no Lombok
+    └── dto/
+        └── TransferRequest.java     ← manual getters/setters, no Lombok
+
+
+
+
+
+
+
+
+package com.finvault.config;
+
+import org.hibernate.dialect.Dialect;
+import org.hibernate.dialect.function.SQLFunctionTemplate;
+import org.hibernate.dialect.function.StandardSQLFunction;
+import org.hibernate.dialect.function.VarArgsSQLFunction;
+import org.hibernate.type.StandardBasicTypes;
+
+import java.sql.Types;
+
+/**
+ * Custom SQLite dialect for Hibernate.
+ * Since there's no official SQLite dialect in Hibernate,
+ * we write our own by extending the base Dialect class
+ * and registering how each Java type maps to SQLite column types.
+ *
+ * This replaces the need for any external dialect library.
+ */
+public class SQLiteDialect extends Dialect {
+
+    public SQLiteDialect() {
+        // Register Java SQL types → SQLite column types
+        registerColumnType(Types.BIT, "integer");
+        registerColumnType(Types.TINYINT, "tinyint");
+        registerColumnType(Types.SMALLINT, "smallint");
+        registerColumnType(Types.INTEGER, "integer");
+        registerColumnType(Types.BIGINT, "integer");       // SQLite has no BIGINT, use integer
+        registerColumnType(Types.FLOAT, "real");
+        registerColumnType(Types.REAL, "real");
+        registerColumnType(Types.DOUBLE, "real");
+        registerColumnType(Types.NUMERIC, "numeric");
+        registerColumnType(Types.DECIMAL, "decimal");
+        registerColumnType(Types.CHAR, "char");
+        registerColumnType(Types.VARCHAR, "varchar");
+        registerColumnType(Types.LONGVARCHAR, "longvarchar");
+        registerColumnType(Types.DATE, "date");
+        registerColumnType(Types.TIME, "time");
+        registerColumnType(Types.TIMESTAMP, "datetime");
+        registerColumnType(Types.BINARY, "blob");
+        registerColumnType(Types.VARBINARY, "blob");
+        registerColumnType(Types.LONGVARBINARY, "blob");
+        registerColumnType(Types.BLOB, "blob");
+        registerColumnType(Types.CLOB, "clob");
+        registerColumnType(Types.BOOLEAN, "integer");      // SQLite has no BOOLEAN, use 0/1
+
+        // Register common SQL functions
+        registerFunction("concat",    new VarArgsSQLFunction(StandardBasicTypes.STRING, "", "||", ""));
+        registerFunction("mod",       new SQLFunctionTemplate(StandardBasicTypes.INTEGER, "?1 % ?2"));
+        registerFunction("substr",    new StandardSQLFunction("substr",    StandardBasicTypes.STRING));
+        registerFunction("substring", new StandardSQLFunction("substr",    StandardBasicTypes.STRING));
+    }
+
+    @Override
+    public boolean supportsCurrentTimestampSelection() { return true; }
+
+    @Override
+    public boolean isCurrentTimestampSelectStringCallable() { return false; }
+
+    @Override
+    public String getCurrentTimestampSelectString() { return "select current_timestamp"; }
+
+    @Override
+    public boolean supportsUnionAll() { return true; }
+
+    // SQLite does not support ALTER TABLE in the traditional sense
+    @Override
+    public boolean hasAlterTable() { return false; }
+
+    @Override
+    public boolean dropConstraints() { return false; }
+
+    // SQLite uses "add column" syntax
+    @Override
+    public String getAddColumnString() { return "add column"; }
+
+    // SQLite has no FOR UPDATE locking syntax
+    @Override
+    public String getForUpdateString() { return ""; }
+
+    @Override
+    public boolean supportsOuterJoinForUpdate() { return false; }
+
+    // SQLite does not support foreign key constraint modification via ALTER
+    @Override
+    public String getDropForeignKeyString() {
+        throw new UnsupportedOperationException(
+                "SQLite does not support dropping foreign keys via ALTER TABLE");
+    }
+
+    @Override
+    public String getAddForeignKeyConstraintString(
+            String constraintName, String[] foreignKey,
+            String referencedTable, String[] primaryKey, boolean referencesPrimaryKey) {
+        throw new UnsupportedOperationException(
+                "SQLite does not support adding foreign keys via ALTER TABLE");
+    }
+
+    @Override
+    public String getAddPrimaryKeyConstraintString(String constraintName) {
+        throw new UnsupportedOperationException(
+                "SQLite does not support adding primary keys via ALTER TABLE");
+    }
+
+    @Override
+    public boolean supportsIfExistsBeforeTableName() { return true; }
+
+    @Override
+    public boolean supportsCascadeDelete() { return false; }
+}
+
+
+
+
+
+
+
+
+spring.datasource.url=jdbc:sqlite:finvault.db
+spring.datasource.driver-class-name=org.sqlite.JDBC
+
+# Point to our custom dialect class we wrote above
+spring.jpa.database-platform=com.finvault.config.SQLiteDialect
+
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.show-sql=true
+
+spring.application.name=FinVault
+server.port=8080
+
+
+
+
+
+
+
+
+package com.finvault.model;
+
+import javax.persistence.*;
+
+/**
+ * @Entity — Tells Hibernate this class maps to a DB table
+ * @Table  — Specifies the table name as "accounts" in SQLite
+ */
+@Entity
+@Table(name = "accounts")
+public class Account {
+
+    /**
+     * @Id             — This field is the primary key
+     * @GeneratedValue — SQLite auto-increments this on every INSERT
+     */
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    /**
+     * @Column — Maps to "account_number" column in DB
+     *           unique = no two rows can have same account number
+     *           nullable = false adds NOT NULL constraint
+     */
+    @Column(name = "account_number", unique = true, nullable = false)
+    private String accountNumber;
+
+    @Column(name = "holder_name", nullable = false)
+    private String holderName;
+
+    @Column(name = "account_type", nullable = false)
+    private String accountType;  // "savings" or "current"
+
+    @Column(nullable = false)
+    private Double balance;
+
+    // ── Constructors ──────────────────────────────────────────────────────────
+
+    // Required by JPA — always needed when you have a parameterized constructor
+    public Account() {}
+
+    public Account(Long id, String accountNumber, String holderName,
+                   String accountType, Double balance) {
+        this.id = id;
+        this.accountNumber = accountNumber;
+        this.holderName = holderName;
+        this.accountType = accountType;
+        this.balance = balance;
+    }
+
+    // ── Getters ───────────────────────────────────────────────────────────────
+
+    public Long getId() { return id; }
+
+    public String getAccountNumber() { return accountNumber; }
+
+    public String getHolderName() { return holderName; }
+
+    public String getAccountType() { return accountType; }
+
+    public Double getBalance() { return balance; }
+
+    // ── Setters ───────────────────────────────────────────────────────────────
+
+    public void setId(Long id) { this.id = id; }
+
+    public void setAccountNumber(String accountNumber) { this.accountNumber = accountNumber; }
+
+    public void setHolderName(String holderName) { this.holderName = holderName; }
+
+    public void setAccountType(String accountType) { this.accountType = accountType; }
+
+    public void setBalance(Double balance) { this.balance = balance; }
+
+    // ── toString (useful for logging) ─────────────────────────────────────────
+
+    @Override
+    public String toString() {
+        return "Account{" +
+                "id=" + id +
+                ", accountNumber='" + accountNumber + '\'' +
+                ", holderName='" + holderName + '\'' +
+                ", accountType='" + accountType + '\'' +
+                ", balance=" + balance +
+                '}';
+    }
+}
+
+
+
+
+
+
+
+
+package com.finvault.dto;
+
+/**
+ * DTO — Not an @Entity, not saved to DB.
+ * Only used to read the JSON body from POST /transfer request.
+ * Jackson needs getters/setters to map JSON fields to this object.
+ */
+public class TransferRequest {
+
+    private String fromAccount;
+    private String toAccount;
+    private Double amount;
+
+    // ── Constructors ──────────────────────────────────────────────────────────
+
+    public TransferRequest() {}
+
+    public TransferRequest(String fromAccount, String toAccount, Double amount) {
+        this.fromAccount = fromAccount;
+        this.toAccount = toAccount;
+        this.amount = amount;
+    }
+
+    // ── Getters & Setters ─────────────────────────────────────────────────────
+
+    public String getFromAccount() { return fromAccount; }
+
+    public void setFromAccount(String fromAccount) { this.fromAccount = fromAccount; }
+
+    public String getToAccount() { return toAccount; }
+
+    public void setToAccount(String toAccount) { this.toAccount = toAccount; }
+
+    public Double getAmount() { return amount; }
+
+    public void setAmount(Double amount) { this.amount = amount; }
+}
+
+
+
