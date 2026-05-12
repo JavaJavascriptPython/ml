@@ -212,3 +212,65 @@ export class AppComponent {
     }
   ];
 }
+
+
+
+
+
+
+yAxes = [
+
+  // MAIN VISIBLE AXIS
+  {
+    type: 'value',
+    name: 'Common Scale',
+    position: 'left',
+
+    axisLine: {
+      show: true
+    },
+
+    axisTick: {
+      show: true
+    },
+
+    axisLabel: {
+      show: true
+    },
+
+    splitLine: {
+      show: true
+    }
+  },
+
+  // HIDDEN AXIS 2
+  {
+    type: 'value',
+
+    show: false,
+
+    min: 0,
+    max: 1000
+  },
+
+  // HIDDEN AXIS 3
+  {
+    type: 'value',
+
+    show: false,
+
+    min: 0,
+    max: 5000
+  },
+
+  // HIDDEN AXIS 4
+  {
+    type: 'value',
+
+    show: false,
+
+    min: -100,
+    max: 100
+  }
+
+];
