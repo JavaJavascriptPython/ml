@@ -1,0 +1,329 @@
+import {
+  Component,
+  ElementRef,
+  Input,
+  OnInit,
+  OnDestroy,
+  ViewChild,
+  OnChanges,
+  SimpleChanges
+} from '@angular/core';
+
+import * as echarts from 'echarts';
+
+@Component({
+  selector: 'app-chart',
+  templateUrl: './chart.component.html',
+  styleUrls: ['./chart.component.css']
+})
+export class ChartComponent
+  implements OnInit, OnDestroy, OnChanges {
+
+  @ViewChild('chartContainer')
+  chartContainer: ElementRef;
+
+  // CHART TITLE
+  @Input() title: string = '';
+
+  // X AXIS TITLE
+  @Input() xAxisName: string = '';
+
+  // X AXIS DATA
+  @Input() xAxisData: any[] = [];
+
+  // SERIES ARRAY
+  @Input() series: any[] = [];
+
+  chartInstance: any;
+
+  resizeHandler = () => {
+    if (this.chartInstance) {
+      this.chartInstance.resize();
+    }
+  };
+
+  ngOnInit() {
+
+    setTimeout(() => {
+      this.initChart();
+    }, 0);
+  }
+
+  ngOnChanges(changes: SimpleChanges) {
+
+    if (this.chartInstance) {
+      this.setChartOptions();
+    }
+  }
+
+  initChart() {
+
+    this.chartInstance = echarts.init(
+      this.chartContainer.nativeElement
+    );
+
+    this.setChartOptions();
+
+    window.addEventListener(
+      'resize',
+      this.resizeHandler
+    );
+  }
+
+  // GENERATE Y AXES DYNAMICALLY
+  createYAxis() {
+
+    const axes = [];
+
+    for (let i = 0; i < this.series.length; i++) {
+
+      axes.push({
+
+        type: 'value',
+
+        position: 'left',
+
+        scale: true,
+
+        // SHOW ONLY FIRST AXIS
+        show: i === 0,
+
+        axisLine: {
+          show: i === 0
+        },
+
+        axisTick: {
+          show: i === 0
+        },
+
+        axisLabel: {
+          show: i === 0
+        },
+
+        splitLine: {
+          show: i === 0
+        }
+      });
+    }
+
+    return axes;
+  }
+
+  setChartOptions() {
+
+    // ASSIGN Y AXIS INDEX TO SERIES
+    const updatedSeries = this.series.map(
+      (item, index) => {
+
+        return {
+
+          ...item,
+
+          yAxisIndex: index,
+
+          smooth: item.type === 'line',
+
+          animationDuration: 1000
+        };
+      }
+    );
+
+    const option = {
+
+      title: {
+        text: this.title,
+        left: 'center'
+      },
+
+      tooltip: {
+        trigger: 'axis'
+      },
+
+      legend: {
+
+        top: 35,
+
+        data: updatedSeries.map(
+          item => item.name
+        )
+      },
+
+      toolbox: {
+
+        right: 20,
+
+        feature: {
+
+          saveAsImage: {},
+
+          dataZoom: {},
+
+          restore: {}
+        }
+      },
+
+      grid: {
+
+        left: '8%',
+
+        right: '3%',
+
+        bottom: '15%',
+
+        top: '18%',
+
+        containLabel: true
+      },
+
+      dataZoom: [
+
+        {
+          type: 'inside'
+        },
+
+        {
+          type: 'slider',
+          bottom: 20
+        }
+      ],
+
+      xAxis: {
+
+        type: 'category',
+
+        boundaryGap: false,
+
+        name: this.xAxisName,
+
+        data: this.xAxisData,
+
+        axisLine: {
+          show: true
+        },
+
+        axisTick: {
+          show: true
+        }
+      },
+
+      yAxis: this.createYAxis(),
+
+      series: updatedSeries
+    };
+
+    this.chartInstance.setOption(
+      option,
+      true
+    );
+  }
+
+  ngOnDestroy() {
+
+    if (this.chartInstance) {
+      this.chartInstance.dispose();
+    }
+
+    window.removeEventListener(
+      'resize',
+      this.resizeHandler
+    );
+  }
+}
+
+
+
+
+import { Component } from '@angular/core';
+
+@Component({
+  selector: 'app-root',
+  templateUrl: './app.component.html'
+})
+export class AppComponent {
+
+  chartTitle = 'Enterprise Monitoring Dashboard';
+
+  xAxisName = 'Time';
+
+  xAxisData = [
+
+    '10:00',
+    '10:05',
+    '10:10',
+    '10:15',
+    '10:20',
+    '10:25',
+    '10:30'
+  ];
+
+  series = [
+
+    // CPU
+    {
+      name: 'CPU %',
+
+      type: 'line',
+
+      data: [
+        20,
+        35,
+        45,
+        30,
+        60,
+        55,
+        70
+      ]
+    },
+
+    // MEMORY
+    {
+      name: 'Memory GB',
+
+      type: 'line',
+
+      data: [
+        4,
+        5,
+        5.5,
+        6,
+        6.2,
+        7,
+        7.5
+      ]
+    },
+
+    // TRANSACTIONS
+    {
+      name: 'Transactions',
+
+      type: 'bar',
+
+      data: [
+        1000,
+        2200,
+        1800,
+        3200,
+        4000,
+        5200,
+        6100
+      ]
+    },
+
+    // TEMPERATURE
+    {
+      name: 'Temperature',
+
+      type: 'line',
+
+      data: [
+        -10,
+        5,
+        12,
+        20,
+        18,
+        25,
+        30
+      ]
+    }
+  ];
+}
