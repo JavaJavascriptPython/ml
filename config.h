@@ -33,3 +33,21 @@ crypt32.lib
 ws2_32.lib
 advapi32.lib
 user32.lib
+
+
+
+
+
+#include <stdio.h>
+#include "libssh2.h"
+
+int main() {
+    int rc = libssh2_init(0);
+    if (rc == 0) {
+        printf("libssh2 initialized successfully!\n");
+        libssh2_exit();
+    } else {
+        printf("libssh2_init failed with error %d\n", rc);
+    }
+    return rc;
+}
