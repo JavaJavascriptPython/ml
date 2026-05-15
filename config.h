@@ -24,3 +24,12 @@
 #define LIBSSH2_NO_ED25519      /* No ED25519 key support */
 
 #endif
+
+
+
+
+bcrypt.lib
+crypt32.lib
+ws2_32.lib
+advapi32.lib
+user32.lib
