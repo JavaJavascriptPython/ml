@@ -1,0 +1,409 @@
+/*
+ * sftp_curl.c
+ *
+ * This program demonstrates how to:
+ *   1. DOWNLOAD (GET) a file from a remote SFTP server to your local machine
+ *   2. UPLOAD   (PUT) a file from your local machine to a remote SFTP server
+ *
+ * Using libcurl with libssh2 backend and WinCNG crypto.
+ *
+ * libcurl is much simpler than raw libssh2 because:
+ *   - No manual socket creation needed
+ *   - No manual SSH handshake needed
+ *   - No manual authentication loop needed
+ *   - libcurl handles ALL of that internally
+ *   - You just set options and call perform()
+ *
+ * Think of libcurl like a browser for your code — you give it a URL
+ * and it handles everything underneath automatically.
+ *
+ * Build in Visual Studio 2022:
+ *   Linker → Input → Additional Dependencies:
+ *       libcurl_imp.lib
+ */
+
+/* ------------------------------------------------------------------ */
+/*  INCLUDES                                                            */
+/* ------------------------------------------------------------------ */
+
+#include <stdio.h>          /* printf, fprintf, fopen, fclose, fread   */
+#include <string.h>         /* strlen                                   */
+#include <sys/stat.h>       /* _stati64 — used to get local file size  */
+#include <curl/curl.h>      /* everything libcurl                       */
+
+/*
+ * Tell the linker to include libcurl automatically.
+ * This is a Visual Studio shortcut — same as adding it in Project Properties.
+ */
+#pragma comment(lib, "libcurl_imp.lib")
+
+
+/* ------------------------------------------------------------------ */
+/*  SERVER CONFIGURATION                                                */
+/*  Change these to match your SFTP server details.                    */
+/* ------------------------------------------------------------------ */
+
+#define SERVER_HOST  "192.168.1.100"   /* IP address or hostname        */
+#define SERVER_PORT  22                /* SSH default port              */
+#define SSH_USER     "your_username"   /* your username on the server   */
+#define SSH_PASS     "your_password"   /* your password on the server   */
+
+/*
+ * SFTP URLs follow this format:
+ *   sftp://hostname:port/absolute/path/to/file
+ *
+ * Note the path starts with / which means it's absolute (from root).
+ * For home directory you can use /~/filename or /home/username/filename
+ */
+#define REMOTE_GET_PATH  "/home/user/remote_file.txt"   /* file to download  */
+#define LOCAL_SAVE_PATH  "C:\\downloaded_file.txt"       /* save it here      */
+
+#define LOCAL_PUT_PATH   "C:\\local_file.txt"            /* file to upload    */
+#define REMOTE_SAVE_PATH "/home/user/uploaded_file.txt"  /* save it here      */
+
+
+/* ------------------------------------------------------------------ */
+/*  CALLBACK FUNCTION: write_callback                                   */
+/*                                                                      */
+/*  When libcurl DOWNLOADS data, it doesn't know what YOU want to do   */
+/*  with it. So it calls this function every time it receives a chunk  */
+/*  of data from the server.                                            */
+/*                                                                      */
+/*  You tell libcurl to use this function via:                          */
+/*    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback)    */
+/*                                                                      */
+/*  Parameters libcurl passes to this function:                         */
+/*    ptr      - pointer to the received data chunk                     */
+/*    size     - always 1 (size of each element in bytes)               */
+/*    nmemb    - number of elements (so total bytes = size * nmemb)     */
+/*    userdata - whatever YOU passed via CURLOPT_WRITEDATA              */
+/*               (we pass a FILE* so we can write directly to disk)     */
+/*                                                                      */
+/*  Must return the number of bytes handled.                            */
+/*  If you return less than (size * nmemb), libcurl treats it as error. */
+/* ------------------------------------------------------------------ */
+static size_t write_callback(void   *ptr,
+                              size_t  size,
+                              size_t  nmemb,
+                              void   *userdata)
+{
+    /*
+     * Cast the generic void* back to FILE* so we can use fwrite().
+     * void* is a generic pointer in C — it can point to anything.
+     * We have to cast it back to the correct type to use it.
+     */
+    FILE *local_file = (FILE*)userdata;
+
+    /*
+     * Write the received data chunk directly to our local file.
+     * fwrite(data, element_size, num_elements, file)
+     * Returns number of elements written.
+     */
+    size_t written = fwrite(ptr, size, nmemb, local_file);
+
+    /*
+     * Optional: print progress.
+     * size * nmemb = total bytes received in this chunk.
+     */
+    printf("[GET] Received chunk: %zu bytes\n", size * nmemb);
+
+    return written; /* return bytes handled — must match what we received */
+}
+
+
+/* ------------------------------------------------------------------ */
+/*  CALLBACK FUNCTION: read_callback                                    */
+/*                                                                      */
+/*  When libcurl UPLOADS data, it needs to know where to get the data  */
+/*  from. It calls this function every time it needs another chunk of  */
+/*  data to send to the server.                                         */
+/*                                                                      */
+/*  You tell libcurl to use this function via:                          */
+/*    curl_easy_setopt(curl, CURLOPT_READFUNCTION, read_callback)      */
+/*                                                                      */
+/*  Parameters libcurl passes to this function:                         */
+/*    ptr      - buffer where YOU put the data for libcurl to send      */
+/*    size     - always 1                                               */
+/*    nmemb    - max bytes libcurl wants in this chunk                  */
+/*    userdata - whatever YOU passed via CURLOPT_READDATA               */
+/*               (we pass a FILE* to read from our local file)          */
+/*                                                                      */
+/*  Must return the number of bytes put into ptr.                       */
+/*  Return 0 to signal end of file (no more data to upload).           */
+/* ------------------------------------------------------------------ */
+static size_t read_callback(void   *ptr,
+                             size_t  size,
+                             size_t  nmemb,
+                             void   *userdata)
+{
+    /* Cast back to FILE* so we can use fread() */
+    FILE *local_file = (FILE*)userdata;
+
+    /*
+     * Read up to (size * nmemb) bytes from our local file
+     * into the buffer ptr that libcurl provided.
+     * fread returns the number of bytes actually read.
+     * Returns 0 at end of file — this tells libcurl upload is complete.
+     */
+    size_t bytes_read = fread(ptr, size, nmemb, local_file);
+
+    printf("[PUT] Sending chunk: %zu bytes\n", bytes_read);
+
+    return bytes_read;
+}
+
+
+/* ------------------------------------------------------------------ */
+/*  FUNCTION: build_sftp_url                                            */
+/*  PURPOSE : Builds a proper SFTP URL from host, port, and path       */
+/*                                                                      */
+/*  Example output: "sftp://192.168.1.100:22/home/user/file.txt"       */
+/* ------------------------------------------------------------------ */
+static void build_sftp_url(char *out_url, size_t out_size,
+                            const char *host, int port, const char *path)
+{
+    /*
+     * snprintf() is like printf() but writes into a string instead
+     * of the console. out_size prevents buffer overflow.
+     */
+    snprintf(out_url, out_size, "sftp://%s:%d%s", host, port, path);
+    printf("[URL] Built URL: %s\n", out_url);
+}
+
+
+/* ------------------------------------------------------------------ */
+/*  FUNCTION: setup_common_options                                       */
+/*  PURPOSE : Sets curl options that are the same for both GET and PUT  */
+/*                                                                      */
+/*  curl_easy_setopt() is the main way to configure libcurl.            */
+/*  It takes 3 arguments:                                               */
+/*    1. the curl handle                                                 */
+/*    2. which option to set (a constant like CURLOPT_URL)              */
+/*    3. the value to set it to                                          */
+/* ------------------------------------------------------------------ */
+static void setup_common_options(CURL *curl, const char *url)
+{
+    /*
+     * Set the URL to connect to.
+     * This is the SFTP URL we built (sftp://host:port/path)
+     */
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+
+    /*
+     * Set the username and password for authentication.
+     * libcurl sends these over the encrypted SSH channel — safe.
+     */
+    curl_easy_setopt(curl, CURLOPT_USERNAME, SSH_USER);
+    curl_easy_setopt(curl, CURLOPT_PASSWORD, SSH_PASS);
+
+    /*
+     * Skip host key verification — FOR TESTING ONLY.
+     *
+     * In a real application you should verify the server's host key
+     * to prevent man-in-the-middle attacks.
+     *
+     * CURLKHSTAT_FINE means "accept this host key, continue"
+     * Setting this to 0 tells libcurl not to check known_hosts file.
+     *
+     * For production use CURLOPT_SSH_KNOWNHOSTS to point to a
+     * known_hosts file and verify the server's identity.
+     */
+    curl_easy_setopt(curl, CURLOPT_SSH_AUTH_TYPES, CURLSSH_AUTH_PASSWORD);
+
+    /*
+     * Enable verbose output — libcurl will print detailed information
+     * about what it's doing (connection, handshake, transfer, etc.)
+     * Very useful for debugging. Set to 0L to disable in production.
+     */
+    curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+
+    /*
+     * Set connection timeout — if server doesn't respond in 30 seconds,
+     * give up and return an error. Prevents the program hanging forever.
+     * Value is in seconds.
+     */
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 30L);
+
+    /*
+     * Set overall operation timeout — the entire transfer must complete
+     * within 300 seconds (5 minutes), otherwise abort.
+     * Increase this for very large files.
+     */
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 300L);
+}
+
+
+/* ------------------------------------------------------------------ */
+/*  FUNCTION: sftp_get                                                  */
+/*  PURPOSE : Download a file FROM the server TO local disk            */
+/*                                                                      */
+/*  Parameters:                                                         */
+/*    remote_path - path of the file on the server                      */
+/*    local_path  - where to save the file on your machine              */
+/*                                                                      */
+/*  Returns: 0 on success, -1 on failure                               */
+/* ------------------------------------------------------------------ */
+int sftp_get(const char *remote_path, const char *local_path)
+{
+    CURL     *curl   = NULL;  /* curl handle — like a "session" object  */
+    FILE     *fp     = NULL;  /* local file we will write into          */
+    CURLcode  result;         /* stores the result of curl operations   */
+    char      url[512];       /* buffer to hold the built SFTP URL      */
+    int       ret    = -1;    /* our return value, assume failure       */
+
+    printf("\n=== SFTP GET (Download) ===\n");
+    printf("[GET] Remote: %s\n", remote_path);
+    printf("[GET] Local : %s\n", local_path);
+
+    /* -------------------------------------------------------------- */
+    /* STEP 1: Create a curl "easy" handle                             */
+    /*                                                                  */
+    /* curl_easy_init() creates a new curl session.                    */
+    /* Think of it like creating a new browser tab.                    */
+    /* You configure it with options, then "perform" the request.      */
+    /* -------------------------------------------------------------- */
+    curl = curl_easy_init();
+    if (!curl) {
+        fprintf(stderr, "[GET] ERROR: curl_easy_init() failed.\n");
+        return -1;
+    }
+
+    /* -------------------------------------------------------------- */
+    /* STEP 2: Open local file for writing                             */
+    /* "wb" = write binary mode (important for non-text files)         */
+    /* -------------------------------------------------------------- */
+    fp = fopen(local_path, "wb");
+    if (!fp) {
+        fprintf(stderr, "[GET] ERROR: Cannot create local file: %s\n", local_path);
+        curl_easy_cleanup(curl);
+        return -1;
+    }
+
+    /* -------------------------------------------------------------- */
+    /* STEP 3: Build the SFTP URL and set common options               */
+    /* -------------------------------------------------------------- */
+    build_sftp_url(url, sizeof(url), SERVER_HOST, SERVER_PORT, remote_path);
+    setup_common_options(curl, url);
+
+    /* -------------------------------------------------------------- */
+    /* STEP 4: Set GET-specific options                                 */
+    /*                                                                  */
+    /* Tell libcurl WHERE to send received data (our write_callback)   */
+    /* and WHAT to pass as userdata (our FILE*)                        */
+    /* -------------------------------------------------------------- */
+
+    /*
+     * CURLOPT_WRITEFUNCTION: function libcurl calls when data arrives.
+     * Every time a chunk of the remote file is received, write_callback
+     * will be called with that chunk.
+     */
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+
+    /*
+     * CURLOPT_WRITEDATA: the userdata passed to write_callback.
+     * We pass our FILE* so write_callback can write directly to disk.
+     */
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
+
+    /* -------------------------------------------------------------- */
+    /* STEP 5: Perform the download                                     */
+    /*                                                                  */
+    /* curl_easy_perform() is where the actual transfer happens.        */
+    /* It blocks (waits) until the transfer is complete or fails.       */
+    /* Internally it:                                                   */
+    /*   1. Creates a TCP socket                                        */
+    /*   2. Connects to the server                                      */
+    /*   3. Does the SSH handshake                                      */
+    /*   4. Authenticates with username/password                        */
+    /*   5. Opens the SFTP subsystem                                    */
+    /*   6. Downloads the file chunk by chunk, calling write_callback   */
+    /*   7. Closes everything cleanly                                   */
+    /* ALL of the above is handled automatically by libcurl.            */
+    /* -------------------------------------------------------------- */
+    printf("[GET] Starting transfer...\n");
+    result = curl_easy_perform(curl);
+
+    /* -------------------------------------------------------------- */
+    /* STEP 6: Check if transfer succeeded                             */
+    /*                                                                  */
+    /* CURLE_OK (value 0) means success.                               */
+    /* curl_easy_strerror() converts error codes to readable messages. */
+    /* -------------------------------------------------------------- */
+    if (result != CURLE_OK) {
+        fprintf(stderr, "[GET] ERROR: Transfer failed: %s\n",
+                curl_easy_strerror(result));
+    } else {
+        printf("[GET] Download complete!\n");
+        printf("[GET] File saved to: %s\n", local_path);
+        ret = 0; /* success */
+    }
+
+    /* -------------------------------------------------------------- */
+    /* STEP 7: Clean up                                                 */
+    /* Always close files and free curl handles when done.             */
+    /* -------------------------------------------------------------- */
+    fclose(fp);
+    curl_easy_cleanup(curl); /* frees memory allocated by curl_easy_init() */
+
+    return ret;
+}
+
+
+/* ------------------------------------------------------------------ */
+/*  FUNCTION: sftp_put                                                  */
+/*  PURPOSE : Upload a file FROM local disk TO the server              */
+/*                                                                      */
+/*  Parameters:                                                         */
+/*    local_path  - path of the file on your local machine              */
+/*    remote_path - where to save the file on the server                */
+/*                                                                      */
+/*  Returns: 0 on success, -1 on failure                               */
+/* ------------------------------------------------------------------ */
+int sftp_put(const char *local_path, const char *remote_path)
+{
+    CURL            *curl   = NULL; /* curl handle                         */
+    FILE            *fp     = NULL; /* local file we will read from        */
+    CURLcode         result;        /* result of curl operations           */
+    char             url[512];      /* buffer for SFTP URL                 */
+    int              ret    = -1;   /* return value, assume failure        */
+    struct _stati64  file_info;     /* struct to hold file information     */
+    curl_off_t       file_size;     /* size of the local file in bytes     */
+
+    printf("\n=== SFTP PUT (Upload) ===\n");
+    printf("[PUT] Local : %s\n", local_path);
+    printf("[PUT] Remote: %s\n", remote_path);
+
+    /* -------------------------------------------------------------- */
+    /* STEP 1: Get the local file size                                  */
+    /*                                                                  */
+    /* We need to tell the server how big the file is BEFORE we start  */
+    /* sending it. This is required by the SFTP protocol.              */
+    /*                                                                  */
+    /* _stati64() is the Windows version of stat() — it fills a struct */
+    /* with file information including size, creation time, etc.        */
+    /* We use the 64-bit version to support files larger than 2GB.     */
+    /* -------------------------------------------------------------- */
+    if (_stati64(local_path, &file_info) != 0) {
+        fprintf(stderr, "[PUT] ERROR: Cannot get file info for: %s\n", local_path);
+        fprintf(stderr, "[PUT]        Does the file exist?\n");
+        return -1;
+    }
+    file_size = file_info.st_size; /* st_size = file size in bytes */
+    printf("[PUT] File size: %lld bytes\n", (long long)file_size);
+
+    /* -------------------------------------------------------------- */
+    /* STEP 2: Open local file for reading                             */
+    /* "rb" = read binary mode                                         */
+    /* -------------------------------------------------------------- */
+    fp = fopen(local_path, "rb");
+    if (!fp) {
+        fprintf(stderr, "[PUT] ERROR: Cannot open local file: %s\n", local_path);
+        return -1;
+    }
+
+    /* -------------------------------------------------------------- */
+    /* STEP 3: Create curl handle                                       */
+    /* -------------------------------------------------------------- */
+    curl = curl_easy_init();
+    if (!curl) {
+        fprintf(stderr, "[PUT] ERROR: cu
