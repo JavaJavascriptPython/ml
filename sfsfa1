@@ -1,0 +1,145 @@
+    /* -------------------------------------------------------------- */
+    /* STEP 3: Create curl handle                                       */
+    /* -------------------------------------------------------------- */
+    curl = curl_easy_init();
+    if (!curl) {
+        fprintf(stderr, "[PUT] ERROR: curl_easy_init() failed.\n");
+        fclose(fp);
+        return -1;
+    }
+
+    /* -------------------------------------------------------------- */
+    /* STEP 4: Build URL and set common options                         */
+    /* -------------------------------------------------------------- */
+    build_sftp_url(url, sizeof(url), SERVER_HOST, SERVER_PORT, remote_path);
+    setup_common_options(curl, url);
+
+    /* -------------------------------------------------------------- */
+    /* STEP 5: Set PUT-specific options                                 */
+    /* -------------------------------------------------------------- */
+
+    /*
+     * CURLOPT_UPLOAD: tell libcurl this is an upload (PUT), not download.
+     * 1L means "yes, this is an upload".
+     * Without this, libcurl would try to download instead.
+     */
+    curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
+
+    /*
+     * CURLOPT_READFUNCTION: function libcurl calls when it needs more
+     * data to send. read_callback reads from our local file and gives
+     * the data to libcurl to send over the network.
+     */
+    curl_easy_setopt(curl, CURLOPT_READFUNCTION, read_callback);
+
+    /*
+     * CURLOPT_READDATA: the userdata passed to read_callback.
+     * We pass our FILE* so read_callback can read from our local file.
+     */
+    curl_easy_setopt(curl, CURLOPT_READDATA, fp);
+
+    /*
+     * CURLOPT_INFILESIZE_LARGE: tell the server the total file size.
+     * This is important — without it the server doesn't know when the
+     * upload is complete. Use the LARGE version to support files > 2GB.
+     */
+    curl_easy_setopt(curl, CURLOPT_INFILESIZE_LARGE, file_size);
+
+    /* -------------------------------------------------------------- */
+    /* STEP 6: Perform the upload                                       */
+    /*                                                                  */
+    /* Same as GET — curl_easy_perform() handles everything:            */
+    /*   - TCP connection                                               */
+    /*   - SSH handshake                                                */
+    /*   - Authentication                                               */
+    /*   - SFTP subsystem                                               */
+    /*   - Calls read_callback repeatedly to get data to upload         */
+    /*   - Sends the data to the server                                 */
+    /* -------------------------------------------------------------- */
+    printf("[PUT] Starting transfer...\n");
+    result = curl_easy_perform(curl);
+
+    /* -------------------------------------------------------------- */
+    /* STEP 7: Check result                                             */
+    /* -------------------------------------------------------------- */
+    if (result != CURLE_OK) {
+        fprintf(stderr, "[PUT] ERROR: Transfer failed: %s\n",
+                curl_easy_strerror(result));
+    } else {
+        printf("[PUT] Upload complete!\n");
+        printf("[PUT] File saved on server at: %s\n", remote_path);
+        ret = 0;
+    }
+
+    /* -------------------------------------------------------------- */
+    /* STEP 8: Cleanup                                                  */
+    /* -------------------------------------------------------------- */
+    fclose(fp);
+    curl_easy_cleanup(curl);
+
+    return ret;
+}
+
+
+/* ================================================================== */
+/*  MAIN FUNCTION                                                       */
+/* ================================================================== */
+int main(void)
+{
+    int rc;
+
+    printf("=== SFTP GET/PUT Demo using libcurl ===\n\n");
+
+    /* ----------------------------------------------------------------
+     * GLOBAL INIT
+     *
+     * curl_global_init() must be called ONCE before any other libcurl
+     * function. It initialises global resources like the SSL/crypto
+     * library, DNS resolver, etc.
+     *
+     * CURL_GLOBAL_DEFAULT = initialise everything (SSL + Win32 socket)
+     *
+     * This is different from curl_easy_init() which creates a session.
+     * Think of global_init as "start the engine" and easy_init as
+     * "open a new browser tab".
+     * ---------------------------------------------------------------- */
+    rc = curl_global_init(CURL_GLOBAL_DEFAULT);
+    if (rc != CURLE_OK) {
+        fprintf(stderr, "[MAIN] ERROR: curl_global_init failed: %d\n", rc);
+        return 1;
+    }
+    printf("[MAIN] libcurl initialized.\n");
+    printf("[MAIN] libcurl version: %s\n\n", curl_version());
+
+    /* ----------------------------------------------------------------
+     * PERFORM GET (Download)
+     * ---------------------------------------------------------------- */
+    rc = sftp_get(REMOTE_GET_PATH, LOCAL_SAVE_PATH);
+    if (rc == 0) {
+        printf("[MAIN] GET: SUCCESS\n\n");
+    } else {
+        printf("[MAIN] GET: FAILED\n\n");
+    }
+
+    /* ----------------------------------------------------------------
+     * PERFORM PUT (Upload)
+     * ---------------------------------------------------------------- */
+    rc = sftp_put(LOCAL_PUT_PATH, REMOTE_SAVE_PATH);
+    if (rc == 0) {
+        printf("[MAIN] PUT: SUCCESS\n\n");
+    } else {
+        printf("[MAIN] PUT: FAILED\n\n");
+    }
+
+    /* ----------------------------------------------------------------
+     * GLOBAL CLEANUP
+     *
+     * curl_global_cleanup() releases all global resources.
+     * Must be called once at the end, after all curl operations.
+     * Pair it with curl_global_init() — always call both.
+     * ---------------------------------------------------------------- */
+    curl_global_cleanup();
+    printf("[MAIN] Done.\n");
+
+    return 0;
+}
