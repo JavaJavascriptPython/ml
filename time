@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Time Adder</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0f1117;
+      --surface:   #181c27;
+      --border:    #252c3f;
+      --accent:    #4f8ef7;
+      --accent2:   #a78bfa;
+      --text:      #e2e8f0;
+      --muted:     #64748b;
+      --success:   #34d399;
+      --error:     #f87171;
+      --radius:    12px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      width: 100%;
+      max-width: 480px;
+      padding: 36px 32px;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+    }
+
+    .header {
+      margin-bottom: 28px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+      background: rgba(79,142,247,0.1);
+      border: 1px solid rgba(79,142,247,0.25);
+      padding: 4px 10px;
+      border-radius: 999px;
+      margin-bottom: 12px;
+    }
+
+    h1 {
+      font-size: 26px;
+      font-weight: 600;
+      line-height: 1.2;
+      color: var(--text);
+    }
+
+    h1 span {
+      color: var(--accent2);
+    }
+
+    .subtitle {
+      margin-top: 6px;
+      font-size: 13.5px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 8px;
+      margin-top: 24px;
+    }
+
+    textarea {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 15px;
+      line-height: 1.8;
+      padding: 14px 16px;
+      resize: vertical;
+      min-height: 150px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    textarea::placeholder {
+      color: var(--muted);
+      opacity: 0.6;
+    }
+
+    textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(79,142,247,0.12);
+    }
+
+    .hint {
+      margin-top: 6px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    button {
+      flex: 1;
+      padding: 12px 20px;
+      border-radius: var(--radius);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+
+    button:active { transform: scale(0.98); }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: #fff;
+    }
+
+    .btn-primary:hover { opacity: 0.9; }
+
+    .btn-secondary {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+
+    .btn-secondary:hover { border-color: var(--muted); color: var(--text); }
+
+    /* Result */
+    .result-box {
+      margin-top: 24px;
+      border-radius: var(--radius);
+      overflow: hidden;
+      display: none;
+    }
+
+    .result-box.visible { display: block; }
+
+    .result-label {
+      background: rgba(79,142,247,0.08);
+      border: 1px solid rgba(79,142,247,0.2);
+      border-bottom: none;
+      border-radius: var(--radius) var(--radius) 0 0;
+      padding: 8px 14px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    .result-value {
+      background: var(--bg);
+      border: 1px solid rgba(79,142,247,0.2);
+      border-radius: 0 0 var(--radius) var(--radius);
+      padding: 18px 20px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--success);
+      letter-spacing: 0.04em;
+      text-align: center;
+    }
+
+    .result-breakdown {
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--muted);
+      font-family: 'JetBrains Mono', monospace;
+      text-align: center;
+    }
+
+    /* Error */
+    .error-box {
+      margin-top: 16px;
+      background: rgba(248,113,113,0.08);
+      border: 1px solid rgba(248,113,113,0.25);
+      border-radius: var(--radius);
+      padding: 12px 16px;
+      font-size: 13px;
+      color: var(--error);
+      display: none;
+    }
+
+    .error-box.visible { display: block; }
+
+    /* Count chip */
+    .count-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 8px;
+    }
+
+    .count-chip span {
+      background: var(--border);
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--text);
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <div class="badge">⏱ Time Adder</div>
+      <h1>Add up <span>durations</span></h1>
+      <p class="subtitle">Paste your timestamps below — one per line in <code style="color:var(--accent2);font-family:'JetBrains Mono',monospace">hh:mm:ss</code> format.</p>
+    </div>
+
+    <label for="timeInput">Your times</label>
+    <textarea
+      id="timeInput"
+      placeholder="01:22:30&#10;00:43:41&#10;00:00:00&#10;07:00:30"
+      spellcheck="false"
+    ></textarea>
+    <div class="count-chip">Detected: <span id="lineCount">0</span> entries</div>
+    <div class="hint">Blank lines and whitespace are ignored automatically.</div>
+
+    <div class="actions">
+      <button class="btn-primary" onclick="calculate()">Calculate Total</button>
+      <button class="btn-secondary" onclick="clearAll()">Clear</button>
+    </div>
+
+    <div class="error-box" id="errorBox"></div>
+
+    <div class="result-box" id="resultBox">
+      <div class="result-label">Total Duration</div>
+      <div class="result-value" id="resultValue">00:00:00</div>
+      <div class="result-breakdown" id="resultBreakdown"></div>
+    </div>
+  </div>
+
+  <script>
+    const input = document.getElementById('timeInput');
+    const lineCount = document.getElementById('lineCount');
+    const resultBox = document.getElementById('resultBox');
+    const errorBox = document.getElementById('errorBox');
+    const resultValue = document.getElementById('resultValue');
+    const resultBreakdown = document.getElementById('resultBreakdown');
+
+    input.addEventListener('input', updateCount);
+
+    function updateCount() {
+      const lines = input.value.split('\n').filter(l => l.trim() !== '');
+      lineCount.textContent = lines.length;
+    }
+
+    function calculate() {
+      errorBox.classList.remove('visible');
+      resultBox.classList.remove('visible');
+
+      const lines = input.value
+        .split('\n')
+        .map(l => l.trim())
+        .filter(l => l !== '');
+
+      if (lines.length === 0) {
+        showError('Please enter at least one time value.');
+        return;
+      }
+
+      const timeRegex = /^\d{1,2}:\d{2}:\d{2}$/;
+      let totalSeconds = 0;
+      const badLines = [];
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (!timeRegex.test(line)) {
+          badLines.push(`Line ${i + 1}: "${line}"`);
+          continue;
+        }
+        const [h, m, s] = line.split(':').map(Number);
+        if (m > 59 || s > 59) {
+          badLines.push(`Line ${i + 1}: "${line}" (minutes/seconds must be 0–59)`);
+          continue;
+        }
+        totalSeconds += h * 3600 + m * 60 + s;
+      }
+
+      if (badLines.length > 0) {
+        showError('Invalid format found:\n' + badLines.join('\n'));
+        return;
+      }
+
+      const hours   = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+
+      const formatted = `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+      resultValue.textContent = formatted;
+
+      // Breakdown text
+      let parts = [];
+      if (hours > 0)   parts.push(`${hours} hr${hours !== 1 ? 's' : ''}`);
+      if (minutes > 0) parts.push(`${minutes} min${minutes !== 1 ? 's' : ''}`);
+      if (seconds > 0) parts.push(`${seconds} sec${seconds !== 1 ? 's' : ''}`);
+      resultBreakdown.textContent = parts.length ? '= ' + parts.join(', ') : 'Zero duration';
+
+      resultBox.classList.add('visible');
+    }
+
+    function showError(msg) {
+      errorBox.textContent = '⚠ ' + msg;
+      errorBox.classList.add('visible');
+    }
+
+    function clearAll() {
+      input.value = '';
+      lineCount.textContent = '0';
+      errorBox.classList.remove('visible');
+      resultBox.classList.remove('visible');
+    }
+
+    function pad(n) {
+      return String(n).padStart(2, '0');
+    }
+
+    // Allow Ctrl+Enter to calculate
+    input.addEventListener('keydown', e => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') calculate();
+    });
+
+    updateCount();
+  </script>
+</body>
+</html>
