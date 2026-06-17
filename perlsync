@@ -1,0 +1,132 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Getopt::Long;
+
+my @ips;
+my $ip_file;
+my $promotion_log;
+
+GetOptions(
+    'i=s{,}' => \@ips,
+    'f=s'    => \$ip_file,
+    'p=s'    => \$promotion_log,
+) or die "Invalid arguments\n";
+
+#
+# Validation
+#
+die "-p promotion_log is mandatory\n"
+    unless $promotion_log;
+
+die "Provide either -i or -f, not both\n"
+    if (@ips && $ip_file);
+
+die "Provide either -i or -f\n"
+    if (!@ips && !$ip_file);
+
+#
+# Read IPs from file if needed
+#
+if ($ip_file) {
+
+    open(my $fh, '<', $ip_file)
+        or die "Cannot open $ip_file : $!\n";
+
+    while (<$fh>) {
+        chomp;
+        next if /^\s*$/;
+        push @ips, $_;
+    }
+
+    close($fh);
+}
+
+#
+# Promotion log basename
+#
+my $promo_file = $promotion_log;
+$promo_file =~ s|^.*/||;
+
+#
+# Today's date format expected by ls -lrt
+# Example: Jun 17
+#
+my @months = qw(
+    Jan Feb Mar Apr May Jun
+    Jul Aug Sep Oct Nov Dec
+);
+
+my ($mday, $mon) = (localtime())[3,4];
+my $today = sprintf("%s %2d", $months[$mon], $mday);
+
+foreach my $ip (@ips) {
+
+    print "\n================================================\n";
+    print "Processing $ip\n";
+    print "================================================\n";
+
+    #
+    # Copy promotion log
+    #
+    my $scp_cmd =
+      "scp $promotion_log $ip:/tmp/$promo_file";
+
+    system($scp_cmd);
+
+    if ($? != 0) {
+        print "[$ip] SCP failed\n";
+        next;
+    }
+
+    #
+    # Remote script
+    #
+    my $remote_cmd = qq{
+
+echo "HASH_OUTPUT_START"
+cat /tmp/$promo_file | /home/scripts/filehash -t
+echo "HASH_OUTPUT_END"
+
+SRC_COUNT=0
+SH_COUNT=0
+EXE_COUNT=0
+
+if [ -n "\\\$SRC" ]
+then
+    SRC_COUNT=\\\$(cd "\\\$SRC" 2>/dev/null && ls -lrt *.Cob 2>/dev/null | grep "$today" | wc -l)
+fi
+
+if [ -n "\\\$SH" ]
+then
+    SH_COUNT=\\\$(cd "\\\$SH" 2>/dev/null && ls -lrt *.Cob 2>/dev/null | grep "$today" | wc -l)
+fi
+
+if [ -n "\\\$EXE" ]
+then
+    EXE_COUNT=\\\$(cd "\\\$EXE" 2>/dev/null && ls -lrt *.Cob 2>/dev/null | grep "$today" | wc -l)
+fi
+
+echo "SRC_COUNT=\$SRC_COUNT"
+echo "SH_COUNT=\$SH_COUNT"
+echo "EXE_COUNT=\$EXE_COUNT"
+
+rm -f /tmp/$promo_file
+
+};
+
+    my $ssh_cmd = qq(ssh $ip '$remote_cmd');
+
+    open(my $sshfh, "$ssh_cmd |")
+        or do {
+            print "[$ip] SSH failed\n";
+            next;
+        };
+
+    while (<$sshfh>) {
+        print "[$ip] $_";
+    }
+
+    close($sshfh);
+}
