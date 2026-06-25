@@ -1,0 +1,199 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Getopt::Long;
+use File::Basename;
+
+###############################
+# Configuration
+###############################
+
+my $REGION_SCRIPT = "./regionlistcreation.pl";
+my $SYNC_SCRIPT   = "./syncregion.sh";
+my $DEFAULT_IPFILE = "/tmp/ipcardfile.txt";
+
+###############################
+# Variables
+###############################
+
+my $date;
+my @ips;
+my $ipfile;
+my $help;
+
+###############################
+# Help
+###############################
+
+sub usage {
+
+print <<"EOF";
+
+Usage:
+    wrapper.pl [OPTIONS]
+
+Description:
+    Wrapper script for regionlistcreation.pl and syncregion.sh.
+
+Options:
+
+    -d YYYYMMDD
+        Date to be passed to regionlistcreation.pl.
+        Default: Today's date.
+
+    -i ip1 ip2 ip3 ...
+        Space separated list of IP addresses.
+
+    -f filename
+        File containing IP addresses.
+
+        If both -i and -f are supplied,
+        -f takes precedence.
+
+        If neither is supplied,
+        $DEFAULT_IPFILE will be used.
+
+    -h
+        Display this help.
+
+Examples:
+
+    wrapper.pl
+
+    wrapper.pl -d 20260625
+
+    wrapper.pl -i 10.0.30.2 10.0.30.3
+
+    wrapper.pl -f servers.txt
+
+    wrapper.pl -d 20260625 -f servers.txt
+
+EOF
+
+exit 0;
+
+}
+
+###############################
+# Parse arguments
+###############################
+
+GetOptions(
+"d=s" => \$date,
+"i=s{,}" => \@ips,
+"f=s" => \$ipfile,
+"h" => \$help
+) or usage();
+
+usage() if $help;
+
+###############################
+# Validate date
+###############################
+
+if (defined $date) {
+
+unless ($date =~ /^\d{8}$/) {
+die "ERROR: Invalid date format. Use YYYYMMDD\n";
+}
+
+}
+
+###############################
+# Decide IP source
+###############################
+
+my @sync_args;
+
+if (defined $ipfile) {
+
+die "ERROR: IP file '$ipfile' not found.\n"
+unless -f $ipfile;
+
+print "INFO: Using IP file $ipfile\n";
+
+@sync_args = ("-f", $ipfile);
+
+}
+elsif (@ips) {
+
+print "INFO: Using command line IP addresses.\n";
+
+@sync_args = ("-i", @ips);
+
+}
+else {
+
+die "ERROR: Default IP card file not found.\n"
+unless -f $DEFAULT_IPFILE;
+
+print "INFO: Using default IP card file.\n";
+
+@sync_args = ("-f", $DEFAULT_IPFILE);
+
+}
+
+###############################
+# Run first script
+###############################
+
+my $cmd = $REGION_SCRIPT;
+
+$cmd .= " -d $date" if defined $date;
+
+print "\nRunning:\n$cmd\n\n";
+
+my $output = `$cmd`;
+
+if ($? != 0) {
+die "ERROR: regionlistcreation.pl failed.\n";
+}
+
+###############################
+# Extract generated filename
+###############################
+
+my $region_file;
+
+if ($output =~ /OUTPUT_FILE=(\S+)/) {
+
+$region_file = $1;
+
+}
+else {
+
+die "ERROR: Could not determine generated region list file.\n";
+
+}
+
+die "ERROR: Region list file not found: $region_file\n"
+unless -f $region_file;
+
+print "Generated file : $region_file\n";
+
+###############################
+# Run sync script
+###############################
+
+my @command = (
+$SYNC_SCRIPT,
+"-r",
+$region_file,
+@sync_args
+);
+
+print "\nExecuting:\n";
+print join(" ", @command), "\n\n";
+
+system(@command);
+
+if ($? != 0) {
+
+die "ERROR: syncregion.sh failed.\n";
+
+}
+
+print "\nWrapper completed successfully.\n";
+
+exit 0;
