@@ -1,0 +1,85 @@
+use strict;
+use warnings;
+use Time::Piece;
+
+my $mod_file = "mod_file.txt";
+my $acc_file = "access_file.txt";
+
+my %modified;
+my %accessed;
+
+my $year = (localtime)->year;
+
+# Read modification file
+open(my $MOD, "<", $mod_file) or die "Cannot open $mod_file: $!";
+
+while (my $line = <$MOD>) {
+    chomp $line;
+    next if $line =~ /^\s*$/;
+
+    my @fields = split /\s+/, $line;
+
+    my $month = $fields[5];
+    my $day   = $fields[6];
+    my $time  = $fields[7];
+    my $file  = $fields[8];
+
+    my $tp = Time::Piece->strptime(
+        "$month $day $year $time",
+        "%b %d %Y %H:%M"
+    );
+
+    $modified{$file} = $tp;
+}
+
+close($MOD);
+
+# Read access file
+open(my $ACC, "<", $acc_file) or die "Cannot open $acc_file: $!";
+
+while (my $line = <$ACC>) {
+    chomp $line;
+    next if $line =~ /^\s*$/;
+
+    my @fields = split /\s+/, $line;
+
+    my $month = $fields[5];
+    my $day   = $fields[6];
+    my $time  = $fields[7];
+    my $file  = $fields[8];
+
+    my $tp = Time::Piece->strptime(
+        "$month $day $year $time",
+        "%b %d %Y %H:%M"
+    );
+
+    $accessed{$file} = $tp;
+}
+
+close($ACC);
+
+# Compare timestamps
+foreach my $file (sort keys %modified) {
+
+    print "File: $file\n";
+
+    if (exists $accessed{$file}) {
+
+        my $diff = $accessed{$file} - $modified{$file};
+
+        if ($diff < 0) {
+            print "  Access time is before modification time.\n";
+        }
+        elsif ($diff <= 600) {
+            printf "  Accessed within 10 minutes (%.0f minutes)\n", $diff / 60;
+        }
+        else {
+            printf "  Accessed after %.0f minutes\n", $diff / 60;
+        }
+    }
+    else {
+        print "  File was NOT accessed.\n";
+    }
+
+    print "\n";
+}
