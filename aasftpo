@@ -20,3 +20,85 @@
 transferId,destinationId,sourceFile,destinationFile
 TR000001,AB123,/data/test.txt,test.txt
 TR000002,AB123,/data/report.csv,report.csv
+
+
+package com.company.sftputility.model;
+
+public class Destination {
+
+    private String id;
+    private String name;
+    private String host;
+    private int port;
+    private String username;
+    private String encryptedPassword;
+    private String destinationDirectory;
+    private boolean enabled;
+
+    public Destination() {
+    }
+
+    public String getId() {
+        return id;
+    }
+
+    public void setId(String id) {
+        this.id = id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public String getHost() {
+        return host;
+    }
+
+    public void setHost(String host) {
+        this.host = host;
+    }
+
+    public int getPort() {
+        return port;
+    }
+
+    public void setPort(int port) {
+        this.port = port;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
+    public String getEncryptedPassword() {
+        return encryptedPassword;
+    }
+
+    public void setEncryptedPassword(String encryptedPassword) {
+        this.encryptedPassword = encryptedPassword;
+    }
+
+    public String getDestinationDirectory() {
+        return destinationDirectory;
+    }
+
+    public void setDestinationDirectory(String destinationDirectory) {
+        this.destinationDirectory = destinationDirectory;
+    }
+
+    public boolean isEnabled() {
+        return enabled;
+    }
+
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+    }
+}
