@@ -1,0 +1,22 @@
+{
+  "destinations": [
+    {
+      "id": "AB123",
+      "name": "Test Destination",
+      "host": "10.10.10.10",
+      "port": 22,
+      "username": "testuser",
+      "encryptedPassword": "PLACEHOLDER",
+      "destinationDirectory": "/incoming",
+      "enabled": true
+    }
+  ]
+}
+
+
+
+
+
+transferId,destinationId,sourceFile,destinationFile
+TR000001,AB123,/data/test.txt,test.txt
+TR000002,AB123,/data/report.csv,report.csv
