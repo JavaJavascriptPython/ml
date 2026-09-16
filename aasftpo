@@ -1,177 +1,84 @@
-package com.company.sftputility.model;
+package com.company.sftputility.validation;
 
-public class TransferRequest {
-
-    private String transferId;
-    private String destinationId;
-    private String sourceFile;
-    private String destinationFile;
-
-    public TransferRequest() {
-    }
-
-    public TransferRequest(String transferId,
-                           String destinationId,
-                           String sourceFile,
-                           String destinationFile) {
-        this.transferId = transferId;
-        this.destinationId = destinationId;
-        this.sourceFile = sourceFile;
-        this.destinationFile = destinationFile;
-    }
-
-    public String getTransferId() {
-        return transferId;
-    }
-
-    public void setTransferId(String transferId) {
-        this.transferId = transferId;
-    }
-
-    public String getDestinationId() {
-        return destinationId;
-    }
-
-    public void setDestinationId(String destinationId) {
-        this.destinationId = destinationId;
-    }
-
-    public String getSourceFile() {
-        return sourceFile;
-    }
-
-    public void setSourceFile(String sourceFile) {
-        this.sourceFile = sourceFile;
-    }
-
-    public String getDestinationFile() {
-        return destinationFile;
-    }
-
-    public void setDestinationFile(String destinationFile) {
-        this.destinationFile = destinationFile;
-    }
-
-    @Override
-    public String toString() {
-        return "TransferRequest{" +
-                "transferId='" + transferId + '\'' +
-                ", destinationId='" + destinationId + '\'' +
-                ", sourceFile='" + sourceFile + '\'' +
-                ", destinationFile='" + destinationFile + '\'' +
-                '}';
-    }
-}
-
-
-
-
-
-
-package com.company.sftputility.input;
-
-import com.company.sftputility.exception.ConfigurationException;
+import com.company.sftputility.exception.ValidationException;
 import com.company.sftputility.model.TransferRequest;
 
-import java.util.List;
+import java.io.File;
 
-public interface TransferRequestReader {
+public class TransferValidator {
 
-    List<TransferRequest> read(String filePath)
-            throws ConfigurationException;
-}
-
-
-
-
-package com.company.sftputility.input;
-
-import com.company.sftputility.exception.ConfigurationException;
-import com.company.sftputility.model.TransferRequest;
-
-import java.io.BufferedReader;
-import java.io.FileReader;
-import java.util.ArrayList;
-import java.util.List;
-
-public class CsvTransferRequestReader implements TransferRequestReader {
-
-    @Override
-    public List<TransferRequest> read(String filePath)
-            throws ConfigurationException {
-
-        List<TransferRequest> requests = new ArrayList<TransferRequest>();
+    public void validate(TransferRequest request)
+            throws ValidationException {
 
         try {
 
-            BufferedReader reader =
-                    new BufferedReader(new FileReader(filePath));
-
-            String line;
-            int lineNumber = 0;
-
-            while ((line = reader.readLine()) != null) {
-
-                lineNumber++;
-
-                // Skip header
-                if (lineNumber == 1) {
-                    continue;
-                }
-
-                // Skip empty lines
-                if (line.trim().isEmpty()) {
-                    continue;
-                }
-
-                String[] columns = line.split(",", -1);
-
-                if (columns.length != 4) {
-                    throw new ConfigurationException(
-                            "Invalid CSV format at line "
-                                    + lineNumber
-                                    + ". Expected 4 columns."
-                    );
-                }
-
-                String transferId =
-                        columns[0].trim();
-
-                String destinationId =
-                        columns[1].trim();
-
-                String sourceFile =
-                        columns[2].trim();
-
-                String destinationFile =
-                        columns[3].trim();
-
-                TransferRequest request =
-                        new TransferRequest(
-                                transferId,
-                                destinationId,
-                                sourceFile,
-                                destinationFile
-                        );
-
-                requests.add(request);
+            if (request == null) {
+                throw new ValidationException(
+                        "Transfer request cannot be null."
+                );
             }
 
-            reader.close();
+            // Transfer ID
+            if (isEmpty(request.getTransferId())) {
+                throw new ValidationException(
+                        "Transfer ID cannot be empty."
+                );
+            }
 
-            return requests;
+            // Destination ID
+            if (isEmpty(request.getDestinationId())) {
+                throw new ValidationException(
+                        "Destination ID cannot be empty."
+                );
+            }
 
-        } catch (ConfigurationException e) {
+            // Source file
+            if (isEmpty(request.getSourceFile())) {
+                throw new ValidationException(
+                        "Source file cannot be empty."
+                );
+            }
+
+            // Destination file
+            if (isEmpty(request.getDestinationFile())) {
+                throw new ValidationException(
+                        "Destination file cannot be empty."
+                );
+            }
+
+            // Source file must exist
+            File sourceFile =
+                    new File(request.getSourceFile());
+
+            if (!sourceFile.exists()) {
+                throw new ValidationException(
+                        "Source file does not exist: "
+                                + request.getSourceFile()
+                );
+            }
+
+            if (!sourceFile.isFile()) {
+                throw new ValidationException(
+                        "Source path is not a regular file: "
+                                + request.getSourceFile()
+                );
+            }
+
+        } catch (ValidationException e) {
 
             throw e;
 
         } catch (Exception e) {
 
-            throw new ConfigurationException(
-                    "Unable to read transfer input file: "
-                            + filePath,
+            throw new ValidationException(
+                    "Unexpected error while validating transfer: "
+                            + request.getTransferId(),
                     e
             );
         }
+    }
+
+    private boolean isEmpty(String value) {
+        return value == null || value.trim().isEmpty();
     }
 }
