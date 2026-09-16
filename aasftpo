@@ -143,3 +143,91 @@ public class ApplicationConfig {
         }
     }
 }
+
+
+
+
+
+
+
+package com.company.sftputility;
+
+import com.company.sftputility.config.ApplicationConfig;
+import com.company.sftputility.exception.ConfigurationException;
+import com.company.sftputility.model.Destination;
+import com.company.sftputility.repository.DestinationRepository;
+import com.company.sftputility.repository.JsonDestinationRepository;
+
+public class SftpApplication {
+
+    public static void main(String[] args) {
+
+        try {
+
+            System.out.println("=================================");
+            System.out.println("       SFTP Utility Starting");
+            System.out.println("=================================");
+
+            // Load application configuration
+            ApplicationConfig config =
+                    new ApplicationConfig(
+                            "config/application.properties"
+                    );
+
+            System.out.println(
+                    "Application : " + config.getApplicationName()
+            );
+
+            System.out.println(
+                    "Version     : " + config.getApplicationVersion()
+            );
+
+            // Get destination configuration file from properties
+            String destinationConfigFile =
+                    config.getDestinationConfigFile();
+
+            System.out.println(
+                    "Destination config : " + destinationConfigFile
+            );
+
+            // Load destinations
+            DestinationRepository repository =
+                    new JsonDestinationRepository(
+                            destinationConfigFile
+                    );
+
+            // Test destination lookup
+            Destination destination =
+                    repository.findById("AB123");
+
+            System.out.println();
+            System.out.println("Destination loaded successfully.");
+            System.out.println("ID   : " + destination.getId());
+            System.out.println("Name : " + destination.getName());
+            System.out.println("Host : " + destination.getHost());
+            System.out.println("Port : " + destination.getPort());
+            System.out.println("User : " + destination.getUsername());
+            System.out.println("Dir  : " +
+                    destination.getDestinationDirectory());
+
+            System.out.println();
+            System.out.println("Configuration loaded successfully.");
+
+        } catch (ConfigurationException e) {
+
+            System.err.println(
+                    "Configuration error: " + e.getMessage()
+            );
+
+            e.printStackTrace();
+
+        } catch (Exception e) {
+
+            System.err.println(
+                    "Unexpected application error."
+            );
+
+            e.printStackTrace();
+        }
+    }
+}
