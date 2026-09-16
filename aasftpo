@@ -1,202 +1,143 @@
-{
-  "destinations": [
-    {
-      "id": "AB123",
-      "name": "Test Destination",
-      "host": "10.10.10.10",
-      "port": 22,
-      "username": "testuser",
-      "encryptedPassword": "PLACEHOLDER",
-      "destinationDirectory": "/incoming",
-      "enabled": true
-    }
-  ]
-}
-
-
-
-
-
-transferId,destinationId,sourceFile,destinationFile
-TR000001,AB123,/data/test.txt,test.txt
-TR000002,AB123,/data/report.csv,report.csv
-
-
-package com.company.sftputility.model;
-
-public class Destination {
-
-    private String id;
-    private String name;
-    private String host;
-    private int port;
-    private String username;
-    private String encryptedPassword;
-    private String destinationDirectory;
-    private boolean enabled;
-
-    public Destination() {
-    }
-
-    public String getId() {
-        return id;
-    }
-
-    public void setId(String id) {
-        this.id = id;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public String getHost() {
-        return host;
-    }
-
-    public void setHost(String host) {
-        this.host = host;
-    }
-
-    public int getPort() {
-        return port;
-    }
-
-    public void setPort(int port) {
-        this.port = port;
-    }
-
-    public String getUsername() {
-        return username;
-    }
-
-    public void setUsername(String username) {
-        this.username = username;
-    }
-
-    public String getEncryptedPassword() {
-        return encryptedPassword;
-    }
-
-    public void setEncryptedPassword(String encryptedPassword) {
-        this.encryptedPassword = encryptedPassword;
-    }
-
-    public String getDestinationDirectory() {
-        return destinationDirectory;
-    }
-
-    public void setDestinationDirectory(String destinationDirectory) {
-        this.destinationDirectory = destinationDirectory;
-    }
-
-    public boolean isEnabled() {
-        return enabled;
-    }
-
-    public void setEnabled(boolean enabled) {
-        this.enabled = enabled;
-    }
-}
-
-
-
-
-
-
-
-
-
-
-package com.company.sftputility.repository;
+package com.company.sftputility.config;
 
 import com.company.sftputility.exception.ConfigurationException;
-import com.company.sftputility.model.Destination;
-import com.company.sftputility.model.DestinationConfig;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
-import java.io.File;
-import java.util.List;
+import java.io.FileInputStream;
+import java.io.InputStream;
+import java.util.Properties;
 
-public class JsonDestinationRepository
-        implements DestinationRepository {
+public class ApplicationConfig {
 
-    private final List<Destination> destinations;
+    private final Properties properties;
 
-    public JsonDestinationRepository(String filePath)
-            throws ConfigurationException {
-
+    public ApplicationConfig(String filePath) throws ConfigurationException {
         try {
+            properties = new Properties();
 
-            ObjectMapper objectMapper = new ObjectMapper();
-
-            DestinationConfig config =
-                    objectMapper.readValue(
-                            new File(filePath),
-                            DestinationConfig.class
-                    );
-
-            if (config == null || config.getDestinations() == null) {
-                throw new ConfigurationException(
-                        "Destination configuration is empty."
-                );
-            }
-
-            this.destinations = config.getDestinations();
-
-        } catch (ConfigurationException e) {
-
-            throw e;
+            InputStream inputStream = new FileInputStream(filePath);
+            properties.load(inputStream);
+            inputStream.close();
 
         } catch (Exception e) {
-
             throw new ConfigurationException(
-                    "Unable to load destination configuration: "
-                            + filePath,
+                    "Unable to load application configuration: " + filePath,
                     e
             );
         }
     }
 
-    @Override
-    public Destination findById(String destinationId)
+    public String getApplicationName() throws ConfigurationException {
+        return getRequiredProperty("application.name");
+    }
+
+    public String getApplicationVersion() throws ConfigurationException {
+        return getRequiredProperty("application.version");
+    }
+
+    public String getDestinationConfigFile() throws ConfigurationException {
+        return getRequiredProperty("destination.config.file");
+    }
+
+    public String getInputDirectory() throws ConfigurationException {
+        return getRequiredProperty("input.directory");
+    }
+
+    public String getReportDirectory() throws ConfigurationException {
+        return getRequiredProperty("report.directory");
+    }
+
+    public String getLogDirectory() throws ConfigurationException {
+        return getRequiredProperty("log.directory");
+    }
+
+    public int getSftpConnectionTimeout() throws ConfigurationException {
+        return getIntegerProperty("sftp.connection.timeout");
+    }
+
+    public int getSftpChannelTimeout() throws ConfigurationException {
+        return getIntegerProperty("sftp.channel.timeout");
+    }
+
+    public boolean isRetryEnabled() throws ConfigurationException {
+        return getBooleanProperty("sftp.retry.enabled");
+    }
+
+    public int getMaxRetryAttempts() throws ConfigurationException {
+        return getIntegerProperty("sftp.retry.max-attempts");
+    }
+
+    private String getRequiredProperty(String key)
             throws ConfigurationException {
 
         try {
+            String value = properties.getProperty(key);
 
-            if (destinationId == null
-                    || destinationId.trim().isEmpty()) {
-
+            if (value == null || value.trim().isEmpty()) {
                 throw new ConfigurationException(
-                        "Destination ID cannot be empty."
+                        "Required configuration property is missing: " + key
                 );
             }
 
-            for (Destination destination : destinations) {
-
-                if (destinationId.equals(destination.getId())) {
-                    return destination;
-                }
-            }
-
-            throw new ConfigurationException(
-                    "Destination ID not found: "
-                            + destinationId
-            );
+            return value.trim();
 
         } catch (ConfigurationException e) {
-
             throw e;
 
         } catch (Exception e) {
-
             throw new ConfigurationException(
-                    "Error while finding destination: "
-                            + destinationId,
+                    "Error reading configuration property: " + key,
+                    e
+            );
+        }
+    }
+
+    private int getIntegerProperty(String key)
+            throws ConfigurationException {
+
+        try {
+            String value = getRequiredProperty(key);
+
+            return Integer.parseInt(value);
+
+        } catch (NumberFormatException e) {
+            throw new ConfigurationException(
+                    "Invalid integer value for property: " + key,
+                    e
+            );
+
+        } catch (ConfigurationException e) {
+            throw e;
+
+        } catch (Exception e) {
+            throw new ConfigurationException(
+                    "Error reading integer property: " + key,
+                    e
+            );
+        }
+    }
+
+    private boolean getBooleanProperty(String key)
+            throws ConfigurationException {
+
+        try {
+            String value = getRequiredProperty(key);
+
+            if (!"true".equalsIgnoreCase(value)
+                    && !"false".equalsIgnoreCase(value)) {
+
+                throw new ConfigurationException(
+                        "Invalid boolean value for property: " + key
+                );
+            }
+
+            return Boolean.parseBoolean(value);
+
+        } catch (ConfigurationException e) {
+            throw e;
+
+        } catch (Exception e) {
+            throw new ConfigurationException(
+                    "Error reading boolean property: " + key,
                     e
             );
         }
