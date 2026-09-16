@@ -1,146 +1,65 @@
-package com.company.sftputility.config;
+package com.company.sftputility.model;
 
-import com.company.sftputility.exception.ConfigurationException;
+public class TransferRequest {
 
-import java.io.FileInputStream;
-import java.io.InputStream;
-import java.util.Properties;
+    private String transferId;
+    private String destinationId;
+    private String sourceFile;
+    private String destinationFile;
 
-public class ApplicationConfig {
-
-    private final Properties properties;
-
-    public ApplicationConfig(String filePath) throws ConfigurationException {
-        try {
-            properties = new Properties();
-
-            InputStream inputStream = new FileInputStream(filePath);
-            properties.load(inputStream);
-            inputStream.close();
-
-        } catch (Exception e) {
-            throw new ConfigurationException(
-                    "Unable to load application configuration: " + filePath,
-                    e
-            );
-        }
+    public TransferRequest() {
     }
 
-    public String getApplicationName() throws ConfigurationException {
-        return getRequiredProperty("application.name");
+    public TransferRequest(String transferId,
+                           String destinationId,
+                           String sourceFile,
+                           String destinationFile) {
+        this.transferId = transferId;
+        this.destinationId = destinationId;
+        this.sourceFile = sourceFile;
+        this.destinationFile = destinationFile;
     }
 
-    public String getApplicationVersion() throws ConfigurationException {
-        return getRequiredProperty("application.version");
+    public String getTransferId() {
+        return transferId;
     }
 
-    public String getDestinationConfigFile() throws ConfigurationException {
-        return getRequiredProperty("destination.config.file");
+    public void setTransferId(String transferId) {
+        this.transferId = transferId;
     }
 
-    public String getInputDirectory() throws ConfigurationException {
-        return getRequiredProperty("input.directory");
+    public String getDestinationId() {
+        return destinationId;
     }
 
-    public String getReportDirectory() throws ConfigurationException {
-        return getRequiredProperty("report.directory");
+    public void setDestinationId(String destinationId) {
+        this.destinationId = destinationId;
     }
 
-    public String getLogDirectory() throws ConfigurationException {
-        return getRequiredProperty("log.directory");
+    public String getSourceFile() {
+        return sourceFile;
     }
 
-    public int getSftpConnectionTimeout() throws ConfigurationException {
-        return getIntegerProperty("sftp.connection.timeout");
+    public void setSourceFile(String sourceFile) {
+        this.sourceFile = sourceFile;
     }
 
-    public int getSftpChannelTimeout() throws ConfigurationException {
-        return getIntegerProperty("sftp.channel.timeout");
+    public String getDestinationFile() {
+        return destinationFile;
     }
 
-    public boolean isRetryEnabled() throws ConfigurationException {
-        return getBooleanProperty("sftp.retry.enabled");
+    public void setDestinationFile(String destinationFile) {
+        this.destinationFile = destinationFile;
     }
 
-    public int getMaxRetryAttempts() throws ConfigurationException {
-        return getIntegerProperty("sftp.retry.max-attempts");
-    }
-
-    private String getRequiredProperty(String key)
-            throws ConfigurationException {
-
-        try {
-            String value = properties.getProperty(key);
-
-            if (value == null || value.trim().isEmpty()) {
-                throw new ConfigurationException(
-                        "Required configuration property is missing: " + key
-                );
-            }
-
-            return value.trim();
-
-        } catch (ConfigurationException e) {
-            throw e;
-
-        } catch (Exception e) {
-            throw new ConfigurationException(
-                    "Error reading configuration property: " + key,
-                    e
-            );
-        }
-    }
-
-    private int getIntegerProperty(String key)
-            throws ConfigurationException {
-
-        try {
-            String value = getRequiredProperty(key);
-
-            return Integer.parseInt(value);
-
-        } catch (NumberFormatException e) {
-            throw new ConfigurationException(
-                    "Invalid integer value for property: " + key,
-                    e
-            );
-
-        } catch (ConfigurationException e) {
-            throw e;
-
-        } catch (Exception e) {
-            throw new ConfigurationException(
-                    "Error reading integer property: " + key,
-                    e
-            );
-        }
-    }
-
-    private boolean getBooleanProperty(String key)
-            throws ConfigurationException {
-
-        try {
-            String value = getRequiredProperty(key);
-
-            if (!"true".equalsIgnoreCase(value)
-                    && !"false".equalsIgnoreCase(value)) {
-
-                throw new ConfigurationException(
-                        "Invalid boolean value for property: " + key
-                );
-            }
-
-            return Boolean.parseBoolean(value);
-
-        } catch (ConfigurationException e) {
-            throw e;
-
-        } catch (Exception e) {
-            throw new ConfigurationException(
-                    "Error reading boolean property: " + key,
-                    e
-            );
-        }
+    @Override
+    public String toString() {
+        return "TransferRequest{" +
+                "transferId='" + transferId + '\'' +
+                ", destinationId='" + destinationId + '\'' +
+                ", sourceFile='" + sourceFile + '\'' +
+                ", destinationFile='" + destinationFile + '\'' +
+                '}';
     }
 }
 
@@ -149,85 +68,110 @@ public class ApplicationConfig {
 
 
 
+package com.company.sftputility.input;
 
-package com.company.sftputility;
-
-import com.company.sftputility.config.ApplicationConfig;
 import com.company.sftputility.exception.ConfigurationException;
-import com.company.sftputility.model.Destination;
-import com.company.sftputility.repository.DestinationRepository;
-import com.company.sftputility.repository.JsonDestinationRepository;
+import com.company.sftputility.model.TransferRequest;
 
-public class SftpApplication {
+import java.util.List;
 
-    public static void main(String[] args) {
+public interface TransferRequestReader {
+
+    List<TransferRequest> read(String filePath)
+            throws ConfigurationException;
+}
+
+
+
+
+package com.company.sftputility.input;
+
+import com.company.sftputility.exception.ConfigurationException;
+import com.company.sftputility.model.TransferRequest;
+
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.util.ArrayList;
+import java.util.List;
+
+public class CsvTransferRequestReader implements TransferRequestReader {
+
+    @Override
+    public List<TransferRequest> read(String filePath)
+            throws ConfigurationException {
+
+        List<TransferRequest> requests = new ArrayList<TransferRequest>();
 
         try {
 
-            System.out.println("=================================");
-            System.out.println("       SFTP Utility Starting");
-            System.out.println("=================================");
+            BufferedReader reader =
+                    new BufferedReader(new FileReader(filePath));
 
-            // Load application configuration
-            ApplicationConfig config =
-                    new ApplicationConfig(
-                            "config/application.properties"
+            String line;
+            int lineNumber = 0;
+
+            while ((line = reader.readLine()) != null) {
+
+                lineNumber++;
+
+                // Skip header
+                if (lineNumber == 1) {
+                    continue;
+                }
+
+                // Skip empty lines
+                if (line.trim().isEmpty()) {
+                    continue;
+                }
+
+                String[] columns = line.split(",", -1);
+
+                if (columns.length != 4) {
+                    throw new ConfigurationException(
+                            "Invalid CSV format at line "
+                                    + lineNumber
+                                    + ". Expected 4 columns."
                     );
+                }
 
-            System.out.println(
-                    "Application : " + config.getApplicationName()
-            );
+                String transferId =
+                        columns[0].trim();
 
-            System.out.println(
-                    "Version     : " + config.getApplicationVersion()
-            );
+                String destinationId =
+                        columns[1].trim();
 
-            // Get destination configuration file from properties
-            String destinationConfigFile =
-                    config.getDestinationConfigFile();
+                String sourceFile =
+                        columns[2].trim();
 
-            System.out.println(
-                    "Destination config : " + destinationConfigFile
-            );
+                String destinationFile =
+                        columns[3].trim();
 
-            // Load destinations
-            DestinationRepository repository =
-                    new JsonDestinationRepository(
-                            destinationConfigFile
-                    );
+                TransferRequest request =
+                        new TransferRequest(
+                                transferId,
+                                destinationId,
+                                sourceFile,
+                                destinationFile
+                        );
 
-            // Test destination lookup
-            Destination destination =
-                    repository.findById("AB123");
+                requests.add(request);
+            }
 
-            System.out.println();
-            System.out.println("Destination loaded successfully.");
-            System.out.println("ID   : " + destination.getId());
-            System.out.println("Name : " + destination.getName());
-            System.out.println("Host : " + destination.getHost());
-            System.out.println("Port : " + destination.getPort());
-            System.out.println("User : " + destination.getUsername());
-            System.out.println("Dir  : " +
-                    destination.getDestinationDirectory());
+            reader.close();
 
-            System.out.println();
-            System.out.println("Configuration loaded successfully.");
+            return requests;
 
         } catch (ConfigurationException e) {
 
-            System.err.println(
-                    "Configuration error: " + e.getMessage()
-            );
-
-            e.printStackTrace();
+            throw e;
 
         } catch (Exception e) {
 
-            System.err.println(
-                    "Unexpected application error."
+            throw new ConfigurationException(
+                    "Unable to read transfer input file: "
+                            + filePath,
+                    e
             );
-
-            e.printStackTrace();
         }
     }
 }
