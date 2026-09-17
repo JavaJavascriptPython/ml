@@ -1,84 +1,132 @@
-package com.company.sftputility.validation;
+TransferRequestReader requestReader =
+        new CsvTransferRequestReader();
 
-import com.company.sftputility.exception.ValidationException;
-import com.company.sftputility.model.TransferRequest;
+List<TransferRequest> requests =
+        requestReader.read("input/transfers.csv");
 
-import java.io.File;
+TransferValidator validator =
+        new TransferValidator();
 
-public class TransferValidator {
+for (TransferRequest request : requests) {
 
-    public void validate(TransferRequest request)
-            throws ValidationException {
+    try {
 
-        try {
+        validator.validate(request);
 
-            if (request == null) {
-                throw new ValidationException(
-                        "Transfer request cannot be null."
-                );
-            }
+        System.out.println(
+                "VALID: " + request.getTransferId()
+        );
 
-            // Transfer ID
-            if (isEmpty(request.getTransferId())) {
-                throw new ValidationException(
-                        "Transfer ID cannot be empty."
-                );
-            }
+    } catch (ValidationException e) {
 
-            // Destination ID
-            if (isEmpty(request.getDestinationId())) {
-                throw new ValidationException(
-                        "Destination ID cannot be empty."
-                );
-            }
+        System.err.println(
+                "INVALID: "
+                        + request.getTransferId()
+                        + " - "
+                        + e.getMessage()
+        );
+    }
+}
 
-            // Source file
-            if (isEmpty(request.getSourceFile())) {
-                throw new ValidationException(
-                        "Source file cannot be empty."
-                );
-            }
 
-            // Destination file
-            if (isEmpty(request.getDestinationFile())) {
-                throw new ValidationException(
-                        "Destination file cannot be empty."
-                );
-            }
 
-            // Source file must exist
-            File sourceFile =
-                    new File(request.getSourceFile());
 
-            if (!sourceFile.exists()) {
-                throw new ValidationException(
-                        "Source file does not exist: "
-                                + request.getSourceFile()
-                );
-            }
 
-            if (!sourceFile.isFile()) {
-                throw new ValidationException(
-                        "Source path is not a regular file: "
-                                + request.getSourceFile()
-                );
-            }
+package com.company.sftputility.model;
 
-        } catch (ValidationException e) {
+public enum TransferStatus {
 
-            throw e;
+    SUCCESS,
+    FAILED
+}
 
-        } catch (Exception e) {
 
-            throw new ValidationException(
-                    "Unexpected error while validating transfer: "
-                            + request.getTransferId(),
-                    e
-            );
-        }
+
+
+
+package com.company.sftputility.model;
+
+public class TransferResult {
+
+    private String transferId;
+    private String destinationId;
+    private String sourceFile;
+    private String destinationFile;
+
+    private TransferStatus status;
+    private String reason;
+
+    private long startTime;
+    private long endTime;
+
+    public TransferResult() {
     }
 
-    private boolean isEmpty(String value) {
-        return value == null || value.trim().isEmpty();
+    public String getTransferId() {
+        return transferId;
+    }
+
+    public void setTransferId(String transferId) {
+        this.transferId = transferId;
+    }
+
+    public String getDestinationId() {
+        return destinationId;
+    }
+
+    public void setDestinationId(String destinationId) {
+        this.destinationId = destinationId;
+    }
+
+    public String getSourceFile() {
+        return sourceFile;
+    }
+
+    public void setSourceFile(String sourceFile) {
+        this.sourceFile = sourceFile;
+    }
+
+    public String getDestinationFile() {
+        return destinationFile;
+    }
+
+    public void setDestinationFile(String destinationFile) {
+        this.destinationFile = destinationFile;
+    }
+
+    public TransferStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(TransferStatus status) {
+        this.status = status;
+    }
+
+    public String getReason() {
+        return reason;
+    }
+
+    public void setReason(String reason) {
+        this.reason = reason;
+    }
+
+    public long getStartTime() {
+        return startTime;
+    }
+
+    public void setStartTime(long startTime) {
+        this.startTime = startTime;
+    }
+
+    public long getEndTime() {
+        return endTime;
+    }
+
+    public void setEndTime(long endTime) {
+        this.endTime = endTime;
+    }
+
+    public long getDurationMillis() {
+        return endTime - startTime;
     }
 }
