@@ -1,30 +1,160 @@
-TransferRequestReader requestReader =
-        new CsvTransferRequestReader();
+package com.company.sftputility.sftp;
 
-List<TransferRequest> requests =
-        requestReader.read("input/transfers.csv");
+import com.company.sftputility.exception.SftpConnectionException;
+import com.company.sftputility.exception.SftpTransferException;
+import com.company.sftputility.model.Destination;
+import com.jcraft.jsch.ChannelSftp;
+import com.jcraft.jsch.JSch;
+import com.jcraft.jsch.Session;
 
-TransferValidator validator =
-        new TransferValidator();
+public class JschSftpService implements SftpService {
 
-for (TransferRequest request : requests) {
+    private final int connectionTimeout;
+    private final int channelTimeout;
 
-    try {
+    public JschSftpService(
+            int connectionTimeout,
+            int channelTimeout) {
 
-        validator.validate(request);
+        this.connectionTimeout = connectionTimeout;
+        this.channelTimeout = channelTimeout;
+    }
 
-        System.out.println(
-                "VALID: " + request.getTransferId()
-        );
+    @Override
+    public void upload(
+            Destination destination,
+            String sourceFile,
+            String destinationFile)
+            throws SftpConnectionException,
+                   SftpTransferException {
 
-    } catch (ValidationException e) {
+        Session session = null;
+        ChannelSftp channel = null;
 
-        System.err.println(
-                "INVALID: "
-                        + request.getTransferId()
-                        + " - "
-                        + e.getMessage()
-        );
+        try {
+
+            /*
+             * Step 1:
+             * Create JSch instance.
+             */
+            JSch jsch = new JSch();
+
+            /*
+             * Step 2:
+             * Create SSH session.
+             */
+            session = jsch.getSession(
+                    destination.getUsername(),
+                    destination.getHost(),
+                    destination.getPort()
+            );
+
+            /*
+             * Step 3:
+             * Set password.
+             *
+             * IMPORTANT:
+             * Never log this password.
+             */
+            session.setPassword(
+                    destination.getEncryptedPassword()
+            );
+
+            /*
+             * Step 4:
+             * Host key verification.
+             *
+             * For initial development/testing we are
+             * temporarily disabling strict verification.
+             *
+             * DO NOT keep this setting in production.
+             */
+            session.setConfig(
+                    "StrictHostKeyChecking",
+                    "no"
+            );
+
+            /*
+             * Step 5:
+             * Connection timeout.
+             */
+            session.connect(connectionTimeout);
+
+            /*
+             * Step 6:
+             * Open SFTP channel.
+             */
+            channel = (ChannelSftp)
+                    session.openChannel("sftp");
+
+            /*
+             * Step 7:
+             * Channel timeout.
+             */
+            channel.connect(channelTimeout);
+
+            /*
+             * Step 8:
+             * Upload.
+             */
+            channel.put(
+                    sourceFile,
+                    destinationFile
+            );
+
+        } catch (com.jcraft.jsch.JSchException e) {
+
+            throw new SftpConnectionException(
+                    "Unable to connect to SFTP destination: "
+                            + destination.getId(),
+                    e
+            );
+
+        } catch (com.jcraft.jsch.SftpException e) {
+
+            throw new SftpTransferException(
+                    "SFTP transfer failed for destination: "
+                            + destination.getId(),
+                    e
+            );
+
+        } catch (Exception e) {
+
+            throw new SftpTransferException(
+                    "Unexpected SFTP error for destination: "
+                            + destination.getId(),
+                    e
+            );
+
+        } finally {
+
+            /*
+             * Always disconnect.
+             */
+            if (channel != null) {
+
+                try {
+                    if (channel.isConnected()) {
+                        channel.disconnect();
+                    }
+                } catch (Exception e) {
+                    // Do not hide the original transfer exception.
+                    e.printStackTrace();
+                }
+            }
+
+            if (session != null) {
+
+                try {
+                    if (session.isConnected()) {
+                        session.disconnect();
+                    }
+                } catch (Exception e) {
+                    // Do not hide the original transfer exception.
+                    e.printStackTrace();
+                }
+            }
+        }
     }
 }
 
@@ -32,101 +162,82 @@ for (TransferRequest request : requests) {
 
 
 
-package com.company.sftputility.model;
+package com.company.sftputility;
 
-public enum TransferStatus {
+import com.company.sftputility.exception.SftpConnectionException;
+import com.company.sftputility.exception.SftpTransferException;
+import com.company.sftputility.model.Destination;
+import com.company.sftputility.sftp.JschSftpService;
+import com.company.sftputility.sftp.SftpService;
 
-    SUCCESS,
-    FAILED
-}
+public class SftpServiceTest {
 
+    public static void main(String[] args) {
 
+        try {
 
+            Destination destination =
+                    new Destination();
 
+            destination.setId("AB123");
+            destination.setHost("YOUR_TEST_SERVER");
+            destination.setPort(22);
+            destination.setUsername("YOUR_TEST_USER");
 
-package com.company.sftputility.model;
+            /*
+             * Temporary testing only.
+             *
+             * Do not use a production password here.
+             */
+            destination.setEncryptedPassword(
+                    "YOUR_TEST_PASSWORD"
+            );
 
-public class TransferResult {
+            destination.setDestinationDirectory(
+                    "/incoming"
+            );
 
-    private String transferId;
-    private String destinationId;
-    private String sourceFile;
-    private String destinationFile;
+            SftpService sftpService =
+                    new JschSftpService(
+                            30000,
+                            30000
+                    );
 
-    private TransferStatus status;
-    private String reason;
+            sftpService.upload(
+                    destination,
+                    "input/test.txt",
+                    "/incoming/test.txt"
+            );
 
-    private long startTime;
-    private long endTime;
+            System.out.println(
+                    "SFTP upload successful."
+            );
 
-    public TransferResult() {
-    }
+        } catch (SftpConnectionException e) {
 
-    public String getTransferId() {
-        return transferId;
-    }
+            System.err.println(
+                    "SFTP connection failed: "
+                            + e.getMessage()
+            );
 
-    public void setTransferId(String transferId) {
-        this.transferId = transferId;
-    }
+            e.printStackTrace();
 
-    public String getDestinationId() {
-        return destinationId;
-    }
+        } catch (SftpTransferException e) {
 
-    public void setDestinationId(String destinationId) {
-        this.destinationId = destinationId;
-    }
+            System.err.println(
+                    "SFTP transfer failed: "
+                            + e.getMessage()
+            );
 
-    public String getSourceFile() {
-        return sourceFile;
-    }
+            e.printStackTrace();
 
-    public void setSourceFile(String sourceFile) {
-        this.sourceFile = sourceFile;
-    }
+        } catch (Exception e) {
 
-    public String getDestinationFile() {
-        return destinationFile;
-    }
+            System.err.println(
+                    "Unexpected error."
+            );
 
-    public void setDestinationFile(String destinationFile) {
-        this.destinationFile = destinationFile;
-    }
-
-    public TransferStatus getStatus() {
-        return status;
-    }
-
-    public void setStatus(TransferStatus status) {
-        this.status = status;
-    }
-
-    public String getReason() {
-        return reason;
-    }
-
-    public void setReason(String reason) {
-        this.reason = reason;
-    }
-
-    public long getStartTime() {
-        return startTime;
-    }
-
-    public void setStartTime(long startTime) {
-        this.startTime = startTime;
-    }
-
-    public long getEndTime() {
-        return endTime;
-    }
-
-    public void setEndTime(long endTime) {
-        this.endTime = endTime;
-    }
-
-    public long getDurationMillis() {
-        return endTime - startTime;
+            e.printStackTrace();
+        }
     }
 }
