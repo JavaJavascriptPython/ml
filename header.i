@@ -1,453 +1,132 @@
 
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>Pulse | CDC Monitor</title>
-  <base href="/">
+<header class="topbar">
+  <!-- Logo and title -->
+  <div class="brand">
+    <div class="brand-mark">
+      <mat-icon>sync_alt</mat-icon>
+    </div>
 
-  <meta name="viewport"
-        content="width=device-width, initial-scale=1">
+    <div class="brand-copy">
+      <span class="brand-title">CDC Monitor</span>
+      <span class="brand-subtitle">Transfer Operations</span>
+    </div>
+  </div>
 
-  <link rel="preconnect"
-        href="https://fonts.googleapis.com">
+  <!-- Right-side controls -->
+  <div class="header-controls">
 
-  <link rel="preconnect"
-        href="https://fonts.gstatic.com"
-        crossorigin>
+    <!-- Bank selector -->
+    <div class="bank-picker">
+      <mat-icon class="bank-icon">account_balance</mat-icon>
 
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
-        rel="stylesheet">
+      <mat-form-field appearance="outline" class="bank-select">
+        <mat-select
+          [value]="selectedBank"
+          aria-label="Select bank"
+          (selectionChange)="selectBank($event.value)">
 
-  <link href="https://fonts.googleapis.com/icon?family=Material+Icons"
-        rel="stylesheet">
+          <mat-option value="SBI">SBI</mat-option>
+          <mat-option value="HDFC">HDFC Bank</mat-option>
+          <mat-option value="ICICI">ICICI Bank</mat-option>
+          <mat-option value="AXIS">Axis Bank</mat-option>
 
-  <!-- Development only: Tailwind CSS v4 browser CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-</head>
-<body>
-  <app-root></app-root>
-</body>
-</html>
+        </mat-select>
+      </mat-form-field>
+    </div>
+
+    <!-- Date and time -->
+    <div class="datetime">
+      <span class="date">{{ currentTime | date:'EEE, dd MMM' }}</span>
+      <span class="time">{{ currentTime | date:'hh:mm:ss a' }}</span>
+    </div>
+
+    <!-- Notifications -->
+    <button
+      mat-icon-button
+      class="header-icon-button"
+      aria-label="Notifications"
+      [matMenuTriggerFor]="notificationMenu">
+
+      <mat-icon
+        [matBadge]="unreadCount"
+        matBadgeColor="warn"
+        matBadgeSize="small"
+        [matBadgeHidden]="unreadCount === 0">
+        notifications_none
+      </mat-icon>
+    </button>
+
+    <mat-menu #notificationMenu="matMenu" xPosition="before">
+      <div class="notification-heading">Notifications</div>
+      <button mat-menu-item>
+        <mat-icon>info_outline</mat-icon>
+        <span>View recent CDC events</span>
+      </button>
+      <button mat-menu-item>
+        <mat-icon>error_outline</mat-icon>
+        <span>Check failed transfers</span>
+      </button>
+    </mat-menu>
+
+    <!-- Day / night mode -->
+    <button
+      mat-icon-button
+      class="theme-toggle"
+      [attr.aria-label]="isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'"
+      [matTooltip]="isDarkMode ? 'Light mode' : 'Dark mode'"
+      (click)="toggleTheme()">
+
+      <mat-icon>{{ isDarkMode ? 'light_mode' : 'dark_mode' }}</mat-icon>
+    </button>
+
+  </div>
+</header>
 
 
 
 
 
 
-@import '~@angular/material/prebuilt-themes/indigo-pink.css';
 
-html,
-body {
-  margin: 0;
-  min-height: 100%;
-  font-family: 'Inter', Arial, sans-serif;
-  background: #f7f9f8;
-  color: #182b25;
-}
 
-* {
+/* Main header */
+.topbar {
+  width: 100%;
+  min-height: 72px;
+  padding: 10px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+
+  background: #ffffff;
+  border-bottom: 1px solid #e8ecef;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.035);
+
+  font-family: Arial, Helvetica, sans-serif;
   box-sizing: border-box;
+  position: relative;
+  z-index: 10;
 }
 
-body {
-  min-width: 320px;
-}
-
-.mat-select-panel {
-  max-height: 320px !important;
-}
-
-
-
-
-import { BrowserModule } from '@angular/platform-browser';
-import { NgModule } from '@angular/core';
-import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
-
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatMenuModule } from '@angular/material/menu';
-import { MatSelectModule } from '@angular/material/select';
-import { MatBadgeModule } from '@angular/material/badge';
-
-import { AppComponent } from './app.component';
-
-@NgModule({
-  declarations: [
-    AppComponent
-  ],
-  imports: [
-    BrowserModule,
-    BrowserAnimationsModule,
-    MatButtonModule,
-    MatIconModule,
-    MatMenuModule,
-    MatSelectModule,
-    MatBadgeModule
-  ],
-  providers: [],
-  bootstrap: [AppComponent]
-})
-export class AppModule { }
-
-
-
-
-import { Component, OnInit, OnDestroy } from '@angular/core';
-import { interval, Subscription } from 'rxjs';
-
-@Component({
-  selector: 'app-root',
-  templateUrl: './app.component.html',
-  styleUrls: ['./app.component.css']
-})
-export class AppComponent implements OnInit, OnDestroy {
-
-  currentTime: Date = new Date();
-  selectedBank = 'SBI';
-
-  private clockSubscription: Subscription;
-
-  banks = [
-    { code: 'SBI', name: 'State Bank of India' },
-    { code: 'HDFC', name: 'HDFC Bank' },
-    { code: 'ICICI', name: 'ICICI Bank' },
-    { code: 'AXIS', name: 'Axis Bank' }
-  ];
-
-  notifications = [
-    {
-      title: 'CDC monitoring initialized',
-      message: 'Dashboard is ready to monitor activity.',
-      time: 'Just now',
-      unread: true
-    },
-    {
-      title: 'Sample transfer warning',
-      message: 'Example notification for demonstration.',
-      time: '10 min ago',
-      unread: true
-    }
-  ];
-
-  bankMetrics: any = {
-    SBI: {
-      successful: 1248,
-      failed: 3,
-      lastTransfer: '09:42:18',
-      status: 'Monitoring'
-    },
-    HDFC: {
-      successful: 986,
-      failed: 1,
-      lastTransfer: '09:38:42',
-      status: 'Monitoring'
-    },
-    ICICI: {
-      successful: 762,
-      failed: 5,
-      lastTransfer: '09:35:11',
-      status: 'Attention'
-    },
-    AXIS: {
-      successful: 1104,
-      failed: 0,
-      lastTransfer: '09:41:06',
-      status: 'Monitoring'
-    }
-  };
-
-  constructor() {}
-
-  ngOnInit(): void {
-    this.clockSubscription = interval(1000)
-      .subscribe(() => {
-        this.currentTime = new Date();
-      });
-  }
-
-  ngOnDestroy(): void {
-    if (this.clockSubscription) {
-      this.clockSubscription.unsubscribe();
-    }
-  }
-
-  get selectedBankName(): string {
-    const bank = this.banks.find(
-      item => item.code === this.selectedBank
-    );
-
-    return bank ? bank.name : '';
-  }
-
-  get metrics(): any {
-    return this.bankMetrics[this.selectedBank];
-  }
-
-  get unreadCount(): number {
-    return this.notifications.filter(
-      item => item.unread
-    ).length;
-  }
-
-  selectBank(bankCode: string): void {
-    this.selectedBank = bankCode;
-  }
-
-  markNotificationsRead(): void {
-    this.notifications.forEach(item => {
-      item.unread = false;
-    });
-  }
-
-}
-
-
-
-
-
-
-<div class="min-h-screen bg-gray-50 text-gray-800">
-
-  <!-- Main header -->
-  <header class="bg-white border-b border-gray-200">
-    <div class="max-w-screen-2xl mx-auto px-4 sm:px-6">
-
-      <div class="flex items-center justify-between gap-4 py-4">
-
-        <!-- Logo and product name -->
-        <div class="flex items-center gap-3 min-w-0">
-          <div class="brand-mark flex items-center justify-center rounded-xl">
-            <mat-icon>monitor_heart</mat-icon>
-          </div>
-
-          <div class="min-w-0">
-            <h1 class="text-xl font-semibold tracking-tight">
-              Pulse
-            </h1>
-            <p class="text-xs tracking-widest text-gray-500 uppercase">
-              CDC Monitor
-            </p>
-          </div>
-        </div>
-
-        <!-- Date and live clock -->
-        <div class="hidden md:block text-right">
-          <p class="text-sm font-semibold text-gray-800">
-            {{ currentTime | date:'hh:mm:ss a' }}
-          </p>
-          <p class="text-xs text-gray-500 mt-1">
-            {{ currentTime | date:'EEE, dd MMM yyyy' }}
-          </p>
-        </div>
-
-        <!-- Notifications -->
-        <button
-          mat-icon-button
-          [matMenuTriggerFor]="notificationMenu"
-          aria-label="Notifications"
-          [matBadge]="unreadCount"
-          [matBadgeHidden]="unreadCount === 0"
-          matBadgeColor="warn"
-          matBadgeSize="small"
-          (menuOpened)="markNotificationsRead()">
-          <mat-icon>notifications_none</mat-icon>
-        </button>
-
-        <mat-menu #notificationMenu="matMenu" xPosition="before">
-          <div class="notification-menu-heading">
-            <span>Notifications</span>
-            <span class="notification-count">
-              {{ unreadCount }} new
-            </span>
-          </div>
-
-          <div
-            class="notification-item"
-            *ngFor="let notification of notifications">
-
-            <div class="notification-dot"
-                 [class.dot-muted]="!notification.unread">
-            </div>
-
-            <div class="min-w-0">
-              <p class="text-sm font-medium">
-                {{ notification.title }}
-              </p>
-              <p class="text-xs text-gray-500 mt-1">
-                {{ notification.message }}
-              </p>
-              <p class="text-xs text-gray-400 mt-2">
-                {{ notification.time }}
-              </p>
-            </div>
-          </div>
-
-          <div class="notification-empty"
-               *ngIf="notifications.length === 0">
-            You're all caught up.
-          </div>
-        </mat-menu>
-
-      </div>
-
-      <!-- Bank selection row -->
-      <div class="flex flex-wrap items-center justify-between gap-4 py-4 border-t border-gray-100">
-
-        <div class="flex items-center gap-3">
-          <div class="bank-mark flex items-center justify-center rounded-lg">
-            <mat-icon>account_balance</mat-icon>
-          </div>
-
-          <div>
-            <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Monitoring environment
-            </p>
-            <p class="text-sm font-semibold mt-1">
-              {{ selectedBankName }}
-            </p>
-          </div>
-        </div>
-
-        <div class="bank-selector">
-          <mat-form-field appearance="outline" floatLabel="never">
-            <mat-label>Select bank</mat-label>
-
-            <mat-select
-              [value]="selectedBank"
-              (selectionChange)="selectBank($event.value)"
-              aria-label="Select bank">
-
-              <mat-option
-                *ngFor="let bank of banks"
-                [value]="bank.code">
-
-                {{ bank.name }}
-              </mat-option>
-
-            </mat-select>
-          </mat-form-field>
-        </div>
-
-      </div>
-    </div>
-  </header>
-
-  <!-- Dashboard content -->
-  <main class="max-w-screen-2xl mx-auto px-4 sm:px-6 py-8">
-
-    <div class="flex flex-wrap items-start justify-between gap-3 mb-6">
-      <div>
-        <h2 class="text-2xl font-semibold tracking-tight">
-          Overview
-        </h2>
-        <p class="text-sm text-gray-500 mt-1">
-          Today's CDC activity and transfer summary
-        </p>
-      </div>
-
-      <div class="today-label">
-        <mat-icon>calendar_today</mat-icon>
-        {{ currentTime | date:'dd MMM yyyy' }}
-      </div>
-    </div>
-
-    <!-- Summary cards -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-
-      <div class="metric-card">
-        <div class="metric-heading">
-          <span>Agent status</span>
-          <mat-icon>monitor_heart</mat-icon>
-        </div>
-        <div class="metric-value status-value">
-          <span class="status-dot"></span>
-          {{ metrics.status }}
-        </div>
-        <p class="metric-description">
-          {{ selectedBank }} monitoring environment
-        </p>
-      </div>
-
-      <div class="metric-card">
-        <div class="metric-heading">
-          <span>Successful transfers</span>
-          <mat-icon>check_circle_outline</mat-icon>
-        </div>
-        <div class="metric-value">
-          {{ metrics.successful | number }}
-        </div>
-        <p class="metric-description">
-          Successful files recorded today
-        </p>
-      </div>
-
-      <div class="metric-card">
-        <div class="metric-heading">
-          <span>Failed transfers</span>
-          <mat-icon>error_outline</mat-icon>
-        </div>
-        <div class="metric-value">
-          {{ metrics.failed | number }}
-        </div>
-        <p class="metric-description">
-          Failed events recorded today
-        </p>
-      </div>
-
-      <div class="metric-card">
-        <div class="metric-heading">
-          <span>Last successful transfer</span>
-          <mat-icon>schedule</mat-icon>
-        </div>
-        <div class="metric-value">
-          {{ metrics.lastTransfer }}
-        </div>
-        <p class="metric-description">
-          Example event timestamp
-        </p>
-      </div>
-
-    </div>
-
-    <!-- Placeholder for upcoming dashboard sections -->
-    <div class="mt-6 bg-white border border-gray-200 rounded-xl p-6">
-      <div class="flex items-center gap-3">
-        <mat-icon class="placeholder-icon">description</mat-icon>
-        <div>
-          <h3 class="text-base font-semibold">
-            Transfer logs
-          </h3>
-          <p class="text-sm text-gray-500 mt-1">
-            The latest transfer events and errors will appear here.
-          </p>
-        </div>
-      </div>
-    </div>
-
-    <p class="text-xs text-gray-400 mt-5">
-      Demo mode · All transfer counts and notifications are sample data.
-    </p>
-
-  </main>
-</div>
-
-
-
-
-
-
-:host {
-  display: block;
-  min-height: 100vh;
+/* Logo and brand */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  flex-shrink: 0;
 }
 
 .brand-mark {
-  width: 44px;
-  height: 44px;
-  background: #173d35;
-  color: #ffffff;
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 11px;
+
+  background: #e5f3ef;
+  color: #137a65;
 }
 
 .brand-mark mat-icon {
@@ -456,172 +135,247 @@ export class AppComponent implements OnInit, OnDestroy {
   height: 25px;
 }
 
-.bank-mark {
-  width: 42px;
-  height: 42px;
-  color: #176b52;
-  background: #e8f4ee;
+.brand-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
 
-.bank-selector {
-  width: 280px;
-  max-width: 100%;
+.brand-title {
+  font-size: 17px;
+  line-height: 20px;
+  font-weight: 700;
+  color: #172b36;
+  letter-spacing: -0.3px;
 }
 
-.bank-selector mat-form-field {
-  width: 100%;
-  font-size: 14px;
+.brand-subtitle {
+  font-size: 11px;
+  line-height: 14px;
+  color: #7b8791;
 }
 
-.metric-card {
-  background: #ffffff;
-  border: 1px solid #e5e9e7;
-  border-radius: 12px;
-  padding: 22px;
+/* All header controls stay in one row */
+.header-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
   min-width: 0;
-  transition: border-color 160ms ease,
-              box-shadow 160ms ease;
 }
 
-.metric-card:hover {
-  border-color: #cbd9d2;
-  box-shadow: 0 5px 18px rgba(24, 43, 37, 0.04);
-}
-
-.metric-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  color: #6b7771;
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.metric-heading mat-icon {
-  color: #789087;
-  font-size: 21px;
-  width: 21px;
-  height: 21px;
-}
-
-.metric-value {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  margin-top: 22px;
-  color: #1d3028;
-  font-size: 28px;
-  line-height: 1.2;
-  font-weight: 600;
-  letter-spacing: -0.7px;
-}
-
-.status-value {
-  font-size: 22px;
-  letter-spacing: -0.4px;
-}
-
-.status-dot,
-.notification-dot {
-  display: inline-block;
-  flex-shrink: 0;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #16a36a;
-}
-
-.metric-description {
-  margin-top: 12px;
-  font-size: 12px;
-  color: #89938e;
-  line-height: 1.5;
-}
-
-.today-label {
+/* Bank dropdown */
+.bank-picker {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 9px 12px;
-  border: 1px solid #e5e9e7;
-  background: #ffffff;
-  border-radius: 8px;
-  color: #52635a;
+  padding-left: 12px;
+  border-left: 1px solid #e8ecef;
+}
+
+.bank-icon {
+  color: #657581;
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+}
+
+.bank-select {
+  width: 145px;
   font-size: 13px;
 }
 
-.today-label mat-icon {
-  font-size: 17px;
-  width: 17px;
-  height: 17px;
+/* Remove extra space under Material form field */
+.bank-select ::ng-deep .mat-form-field-wrapper {
+  padding-bottom: 0;
 }
 
-.placeholder-icon {
-  color: #527b68;
+.bank-select ::ng-deep .mat-form-field-infix {
+  width: auto;
+  min-width: 75px;
+  padding: 8px 0;
+  border-top: 0;
 }
 
-.notification-menu-heading {
+.bank-select ::ng-deep .mat-form-field-flex {
+  align-items: center;
+}
+
+.bank-select ::ng-deep .mat-form-field-outline {
+  color: #dce3e7;
+}
+
+.bank-select ::ng-deep .mat-form-field-outline-start,
+.bank-select ::ng-deep .mat-form-field-outline-end,
+.bank-select ::ng-deep .mat-form-field-outline-gap {
+  border-width: 1px;
+}
+
+.bank-select ::ng-deep .mat-form-field-underline {
+  display: none;
+}
+
+/* Date and time */
+.datetime {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  padding-left: 14px;
+  border-left: 1px solid #e8ecef;
+  white-space: nowrap;
+}
+
+.date {
+  font-size: 12px;
+  font-weight: 600;
+  color: #344653;
+}
+
+.time {
+  font-size: 11px;
+  color: #7b8791;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Notification and theme buttons */
+.header-icon-button,
+.theme-toggle {
+  width: 38px;
+  height: 38px;
+  line-height: 38px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 14px 16px;
-  font-size: 14px;
-  font-weight: 600;
-  border-bottom: 1px solid #edf0ee;
+  justify-content: center;
+  flex-shrink: 0;
+
+  color: #647581;
+  border-radius: 10px;
+  transition: background-color 0.2s ease,
+              color 0.2s ease;
 }
 
-.notification-count {
-  color: #527b68;
-  font-size: 12px;
-  font-weight: 500;
+.header-icon-button:hover,
+.theme-toggle:hover {
+  background: #edf5f3;
+  color: #137a65;
 }
 
-.notification-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 11px;
-  width: 310px;
-  max-width: 85vw;
-  padding: 14px 16px;
-  white-space: normal;
-  border-bottom: 1px solid #f0f2f1;
+.theme-toggle {
+  background: #f3f6f7;
+  color: #596c79;
 }
 
-.notification-item:last-child {
-  border-bottom: 0;
-}
-
-.notification-dot {
-  margin-top: 5px;
-}
-
-.notification-dot.dot-muted {
-  background: #cbd5cf;
-}
-
-.notification-empty {
-  padding: 20px;
-  color: #758179;
+.notification-heading {
+  padding: 12px 16px 8px;
   font-size: 13px;
+  font-weight: 700;
+  color: #263b47;
 }
 
-@media (max-width: 599px) {
-  .bank-selector {
-    width: 100%;
+/* Tablet and mobile */
+@media (max-width: 700px) {
+  .topbar {
+    min-height: 64px;
+    padding: 8px 12px;
+    gap: 8px;
   }
 
-  .metric-card {
-    padding: 18px;
+  .brand {
+    gap: 8px;
   }
 
-  .metric-value {
-    margin-top: 16px;
+  .brand-mark {
+    width: 36px;
+    height: 36px;
+  }
+
+  .brand-title {
+    font-size: 14px;
+  }
+
+  .brand-subtitle {
+    display: none;
+  }
+
+  .header-controls {
+    gap: 5px;
+  }
+
+  .bank-picker {
+    gap: 4px;
+    padding-left: 7px;
+  }
+
+  .bank-icon {
+    display: none;
+  }
+
+  .bank-select {
+    width: 105px;
+    font-size: 12px;
+  }
+
+  .datetime {
+    display: none;
+  }
+
+  .header-icon-button,
+  .theme-toggle {
+    width: 34px;
+    height: 34px;
+    line-height: 34px;
+  }
+}
+
+/* Very narrow screens */
+@media (max-width: 380px) {
+  .topbar {
+    padding: 8px;
+  }
+
+  .brand-mark {
+    display: none;
+  }
+
+  .brand-title {
+    font-size: 13px;
+  }
+
+  .bank-select {
+    width: 88px;
+  }
+
+  .header-controls {
+    gap: 2px;
   }
 }
 
 
 
 
-import { MatFormFieldModule } from '@angular/material/form-field';
+
+import { Component, Output, EventEmitter } from '@angular/core';
+
+export class HeaderComponent {
+  selectedBank = 'SBI';
+
+  // Keep updating this value every second in your existing clock logic.
+  currentTime: Date = new Date();
+
+  unreadCount = 0;
+  isDarkMode = false;
+
+  @Output() bankChange = new EventEmitter<string>();
+  @Output() themeChange = new EventEmitter<boolean>();
+
+  selectBank(bankCode: string): void {
+    this.selectedBank = bankCode;
+    this.bankChange.emit(bankCode);
+  }
+
+  toggleTheme(): void {
+    this.isDarkMode = !this.isDarkMode;
+    this.themeChange.emit(this.isDarkMode);
+  }
+}
