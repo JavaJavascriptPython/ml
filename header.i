@@ -1,86 +1,97 @@
 
-<header class="topbar">
-  <!-- Logo and title -->
-  <div class="brand">
-    <div class="brand-mark">
-      <mat-icon>sync_alt</mat-icon>
-    </div>
+/* Global theme variables */
+:root {
+  color-scheme: light;
 
-    <div class="brand-copy">
-      <span class="brand-title">CDC Monitor</span>
-      <span class="brand-subtitle">Transfer Operations</span>
-    </div>
-  </div>
+  --page-bg: #f5f7f9;
+  --surface: #ffffff;
+  --surface-hover: #f0f5f4;
 
-  <!-- Right-side controls -->
-  <div class="header-controls">
+  --text-primary: #172b36;
+  --text-secondary: #667783;
+  --text-muted: #8996a0;
 
-    <!-- Bank selector -->
-    <div class="bank-picker">
-      <mat-icon class="bank-icon">account_balance</mat-icon>
+  --border-color: #e3e9ed;
+  --accent: #137a65;
+  --accent-soft: #e5f3ef;
 
-      <mat-form-field appearance="outline" class="bank-select">
-        <mat-select
-          [value]="selectedBank"
-          aria-label="Select bank"
-          (selectionChange)="selectBank($event.value)">
+  --icon-color: #647581;
 
-          <mat-option value="SBI">SBI</mat-option>
-          <mat-option value="HDFC">HDFC Bank</mat-option>
-          <mat-option value="ICICI">ICICI Bank</mat-option>
-          <mat-option value="AXIS">Axis Bank</mat-option>
+  --danger: #dc2626;
+  --danger-soft: rgba(239, 68, 68, 0.10);
+  --danger-strong: rgba(239, 68, 68, 0.18);
 
-        </mat-select>
-      </mat-form-field>
-    </div>
+  --shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+}
 
-    <!-- Date and time -->
-    <div class="datetime">
-      <span class="date">{{ currentTime | date:'EEE, dd MMM' }}</span>
-      <span class="time">{{ currentTime | date:'hh:mm:ss a' }}</span>
-    </div>
+/* Dark theme overrides */
+.app-shell.dark-theme {
+  color-scheme: dark;
 
-    <!-- Notifications -->
-    <button
-      mat-icon-button
-      class="header-icon-button"
-      aria-label="Notifications"
-      [matMenuTriggerFor]="notificationMenu">
+  --page-bg: #101820;
+  --surface: #19242e;
+  --surface-hover: #25343e;
 
-      <mat-icon
-        [matBadge]="unreadCount"
-        matBadgeColor="warn"
-        matBadgeSize="small"
-        [matBadgeHidden]="unreadCount === 0">
-        notifications_none
-      </mat-icon>
-    </button>
+  --text-primary: #edf3f6;
+  --text-secondary: #b0bec7;
+  --text-muted: #8b9ba7;
 
-    <mat-menu #notificationMenu="matMenu" xPosition="before">
-      <div class="notification-heading">Notifications</div>
-      <button mat-menu-item>
-        <mat-icon>info_outline</mat-icon>
-        <span>View recent CDC events</span>
-      </button>
-      <button mat-menu-item>
-        <mat-icon>error_outline</mat-icon>
-        <span>Check failed transfers</span>
-      </button>
-    </mat-menu>
+  --border-color: #30404b;
+  --accent: #69cbb0;
+  --accent-soft: #203e3a;
 
-    <!-- Day / night mode -->
-    <button
-      mat-icon-button
-      class="theme-toggle"
-      [attr.aria-label]="isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'"
-      [matTooltip]="isDarkMode ? 'Light mode' : 'Dark mode'"
-      (click)="toggleTheme()">
+  --icon-color: #b0bec7;
 
-      <mat-icon>{{ isDarkMode ? 'light_mode' : 'dark_mode' }}</mat-icon>
-    </button>
+  --danger: #ff727b;
+  --danger-soft: rgba(255, 75, 85, 0.10);
+  --danger-strong: rgba(255, 75, 85, 0.19);
 
-  </div>
-</header>
+  --shadow: 0 2px 10px rgba(0, 0, 0, 0.16);
+}
+
+/* Application background */
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  background: var(--page-bg);
+}
+
+app-root {
+  display: block;
+  min-height: 100vh;
+}
+
+.app-shell {
+  min-height: 100vh;
+  background: var(--page-bg);
+  color: var(--text-primary);
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Override existing Tailwind text and background utilities in dark mode */
+.app-shell.dark-theme .bg-white {
+  background-color: var(--surface) !important;
+}
+
+.app-shell.dark-theme .text-gray-500 {
+  color: var(--text-secondary) !important;
+}
+
+.app-shell.dark-theme .text-gray-400 {
+  color: var(--text-muted) !important;
+}
+
+.app-shell.dark-theme .border-gray-200 {
+  border-color: var(--border-color) !important;
+}
 
 
 
@@ -88,20 +99,22 @@
 
 
 
+:host {
+  display: block;
+}
 
-/* Main header */
 .topbar {
-  width: 100%;
-  min-height: 72px;
+  min-height: 68px;
   padding: 10px 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 20px;
 
-  background: #ffffff;
-  border-bottom: 1px solid #e8ecef;
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.035);
+  background: var(--surface);
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-color);
+  box-shadow: var(--shadow);
 
   font-family: Arial, Helvetica, sans-serif;
   box-sizing: border-box;
@@ -109,7 +122,7 @@
   z-index: 10;
 }
 
-/* Logo and brand */
+/* Brand */
 .brand {
   display: flex;
   align-items: center;
@@ -118,21 +131,14 @@
 }
 
 .brand-mark {
-  width: 42px;
-  height: 42px;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 11px;
-
-  background: #e5f3ef;
-  color: #137a65;
-}
-
-.brand-mark mat-icon {
-  font-size: 25px;
-  width: 25px;
-  height: 25px;
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 .brand-copy {
@@ -142,42 +148,38 @@
 }
 
 .brand-title {
+  color: var(--text-primary);
   font-size: 17px;
   line-height: 20px;
   font-weight: 700;
-  color: #172b36;
   letter-spacing: -0.3px;
 }
 
 .brand-subtitle {
+  color: var(--text-muted);
   font-size: 11px;
   line-height: 14px;
-  color: #7b8791;
 }
 
-/* All header controls stay in one row */
+/* Right-side controls */
 .header-controls {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 14px;
+  gap: 12px;
   min-width: 0;
 }
 
-/* Bank dropdown */
 .bank-picker {
   display: flex;
   align-items: center;
   gap: 8px;
   padding-left: 12px;
-  border-left: 1px solid #e8ecef;
+  border-left: 1px solid var(--border-color);
 }
 
 .bank-icon {
-  color: #657581;
-  font-size: 20px;
-  width: 20px;
-  height: 20px;
+  color: var(--icon-color);
 }
 
 .bank-select {
@@ -185,7 +187,7 @@
   font-size: 13px;
 }
 
-/* Remove extra space under Material form field */
+/* Compact Angular Material select */
 .bank-select ::ng-deep .mat-form-field-wrapper {
   padding-bottom: 0;
 }
@@ -202,39 +204,37 @@
 }
 
 .bank-select ::ng-deep .mat-form-field-outline {
-  color: #dce3e7;
+  color: var(--border-color);
 }
 
-.bank-select ::ng-deep .mat-form-field-outline-start,
-.bank-select ::ng-deep .mat-form-field-outline-end,
-.bank-select ::ng-deep .mat-form-field-outline-gap {
-  border-width: 1px;
+.bank-select ::ng-deep .mat-select-value,
+.bank-select ::ng-deep .mat-select-arrow {
+  color: var(--text-primary);
 }
 
 .bank-select ::ng-deep .mat-form-field-underline {
   display: none;
 }
 
-/* Date and time */
 .datetime {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: 3px;
   padding-left: 14px;
-  border-left: 1px solid #e8ecef;
+  border-left: 1px solid var(--border-color);
   white-space: nowrap;
 }
 
 .date {
+  color: var(--text-primary);
   font-size: 12px;
   font-weight: 600;
-  color: #344653;
 }
 
 .time {
+  color: var(--text-muted);
   font-size: 11px;
-  color: #7b8791;
   font-variant-numeric: tabular-nums;
 }
 
@@ -243,40 +243,33 @@
 .theme-toggle {
   width: 38px;
   height: 38px;
-  line-height: 38px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   flex-shrink: 0;
-
-  color: #647581;
   border-radius: 10px;
-  transition: background-color 0.2s ease,
-              color 0.2s ease;
+  color: var(--icon-color);
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 .header-icon-button:hover,
 .theme-toggle:hover {
-  background: #edf5f3;
-  color: #137a65;
+  background: var(--surface-hover);
+  color: var(--accent);
 }
 
 .theme-toggle {
-  background: #f3f6f7;
-  color: #596c79;
+  background: var(--surface-hover);
 }
 
 .notification-heading {
   padding: 12px 16px 8px;
   font-size: 13px;
   font-weight: 700;
-  color: #263b47;
+  color: var(--text-primary);
 }
 
-/* Tablet and mobile */
+/* Mobile */
 @media (max-width: 700px) {
   .topbar {
-    min-height: 64px;
+    min-height: 60px;
     padding: 8px 12px;
     gap: 8px;
   }
@@ -286,29 +279,26 @@
   }
 
   .brand-mark {
-    width: 36px;
-    height: 36px;
+    width: 34px;
+    height: 34px;
   }
 
   .brand-title {
     font-size: 14px;
   }
 
-  .brand-subtitle {
+  .brand-subtitle,
+  .datetime,
+  .bank-icon {
     display: none;
   }
 
   .header-controls {
-    gap: 5px;
+    gap: 4px;
   }
 
   .bank-picker {
-    gap: 4px;
-    padding-left: 7px;
-  }
-
-  .bank-icon {
-    display: none;
+    padding-left: 6px;
   }
 
   .bank-select {
@@ -316,19 +306,13 @@
     font-size: 12px;
   }
 
-  .datetime {
-    display: none;
-  }
-
   .header-icon-button,
   .theme-toggle {
     width: 34px;
     height: 34px;
-    line-height: 34px;
   }
 }
 
-/* Very narrow screens */
 @media (max-width: 380px) {
   .topbar {
     padding: 8px;
@@ -355,27 +339,209 @@
 
 
 
-import { Component, Output, EventEmitter } from '@angular/core';
 
-export class HeaderComponent {
-  selectedBank = 'SBI';
 
-  // Keep updating this value every second in your existing clock logic.
-  currentTime: Date = new Date();
+:host {
+  display: block;
+}
 
-  unreadCount = 0;
-  isDarkMode = false;
+/* Dashboard layout */
+main {
+  color: var(--text-primary);
+}
 
-  @Output() bankChange = new EventEmitter<string>();
-  @Output() themeChange = new EventEmitter<boolean>();
+/* Date badge */
+.today-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+}
 
-  selectBank(bankCode: string): void {
-    this.selectedBank = bankCode;
-    this.bankChange.emit(bankCode);
+.today-label mat-icon {
+  width: 18px;
+  height: 18px;
+  font-size: 18px;
+  color: var(--accent);
+}
+
+/* Metric cards */
+.metric-card {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--border-color);
+  border-radius: 13px;
+  background: var(--surface);
+  color: var(--text-primary);
+  box-shadow: var(--shadow);
+  transition:
+    border-color 0.2s ease,
+    background-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+/* Keep card contents above the alert overlay */
+.metric-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.metric-card:not(.alert-card):hover {
+  border-color: var(--accent);
+  box-shadow: 0 5px 16px rgba(15, 23, 42, 0.07);
+}
+
+/* Card title and icon */
+.metric-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.metric-heading mat-icon {
+  width: 21px;
+  height: 21px;
+  font-size: 21px;
+  color: var(--icon-color);
+  flex-shrink: 0;
+}
+
+/* Metric value */
+.metric-value {
+  margin-top: 17px;
+  color: var(--text-primary);
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.7px;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+.status-value {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 23px;
+  letter-spacing: -0.3px;
+}
+
+/* Agent status indicator */
+.status-dot {
+  width: 9px;
+  height: 9px;
+  display: inline-block;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #16a34a;
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.12);
+}
+
+/* Status text colors */
+.status-value:has(+ .metric-description) {
+  color: var(--text-primary);
+}
+
+/* Card description */
+.metric-description {
+  margin: 10px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* Transfer logs panel */
+.logs-panel {
+  border: 1px solid var(--border-color);
+  background: var(--surface);
+  color: var(--text-primary);
+  box-shadow: var(--shadow);
+}
+
+.logs-panel h3 {
+  color: var(--text-primary);
+}
+
+.logs-panel p {
+  color: var(--text-secondary);
+}
+
+.placeholder-icon {
+  color: var(--accent);
+  font-size: 24px;
+  width: 24px;
+  height: 24px;
+}
+
+/* Failed transfer alert */
+.metric-card.alert-card {
+  border-color: var(--danger);
+  animation: alert-border-pulse 1.5s ease-in-out infinite;
+}
+
+.metric-card.alert-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--danger-soft);
+  animation: alert-overlay-pulse 1.5s ease-in-out infinite;
+}
+
+/* Highlight the failed count and icon */
+.metric-card.alert-card .metric-value,
+.metric-card.alert-card .metric-heading mat-icon {
+  color: var(--danger);
+}
+
+@keyframes alert-border-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 transparent;
+    border-color: var(--danger);
   }
 
-  toggleTheme(): void {
-    this.isDarkMode = !this.isDarkMode;
-    this.themeChange.emit(this.isDarkMode);
+  50% {
+    box-shadow: 0 0 0 4px var(--danger-soft);
   }
 }
+
+@keyframes alert-overlay-pulse {
+  0%, 100% {
+    opacity: 0.35;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Accessibility: retain the warning without motion */
+@media (prefers-reduced-motion: reduce) {
+  .metric-card.alert-card,
+  .metric-card.alert-card::before {
+    animation: none;
+  }
+
+  .metric-card.alert-card {
+    background: var(--danger-soft);
+    border: 2px solid var(--danger);
+  }
+}
+
+
+
+
