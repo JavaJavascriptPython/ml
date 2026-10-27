@@ -1,0 +1,35 @@
+<button (click)="add()">Add entry</button>
+
+<table>
+  <tr><th>Name</th><th>Branch</th><th>IP</th><th>Homedir</th><th>Chdir</th>
+      <th>Available</th><th>Sendvia</th><th>Mode</th><th></th></tr>
+  <tr *ngFor="let e of entries">
+    <td>{{e.name}}</td><td>{{e.branchCode}}</td><td>{{e.ip}}</td>
+    <td>{{e.homedir}}</td><td>{{e.chdir}}</td>
+    <td>{{e.available}}</td><td>{{e.sendvia}}</td><td>{{e.mode}}</td>
+    <td>
+      <button (click)="edit(e)">Edit</button>
+      <button (click)="remove(e)">Delete</button>
+      <button (click)="logs(e)">Logs</button>
+    </td>
+  </tr>
+</table>
+
+<div class="modal-backdrop" *ngIf="showForm">
+  <div class="modal-box">
+    <app-entry-form [entry]="selected"
+                    (saved)="onSaved()" (cancelled)="showForm=false">
+    </app-entry-form>
+  </div>
+</div>
+
+
+Style .modal-backdrop as a fixed full-screen dark overlay and .modal-box as a centered white box. That avoids adding a UI library that might not match Angular 6.
+Changes to the form component (from the last message)
+Add @Input() entry: Entry;, @Output() saved = new EventEmitter(); and @Output() cancelled = new EventEmitter();.
+In ngOnInit, drop the route logic. If entry is set, patchValue it but leave password blank, and make password required only in add mode.
+In save(), call update(this.entry.id, ...) if entry is set, otherwise create(...), then this.saved.emit().
+Add a Cancel button that emits cancelled.
+entry.service.ts needs getAll, create, update(id, e) and delete(id). The UI has no per-entry page, but the API still needs the id for edit and delete (PUT and DELETE /api/entries/{id}).
+Logs design (this matters more on the backend)
+One entry_log table, and the backend writes it automatically in the service layer whenever an entry is created, updated or deleted. The frontend never writes logs, so they can't be skipped or faked.
