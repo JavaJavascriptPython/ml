@@ -33,3 +33,337 @@ Add a Cancel button that emits cancelled.
 entry.service.ts needs getAll, create, update(id, e) and delete(id). The UI has no per-entry page, but the API still needs the id for edit and delete (PUT and DELETE /api/entries/{id}).
 Logs design (this matters more on the backend)
 One entry_log table, and the backend writes it automatically in the service layer whenever an entry is created, updated or deleted. The frontend never writes logs, so they can't be skipped or faked.
+
+
+
+
+import { Injectable } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Observable } from 'rxjs';
+import { Entry } from '../models/entry.model';
+
+@Injectable({ providedIn: 'root' })
+export class EntryService {
+  private base = '/api/entries';
+
+  constructor(private http: HttpClient) {}
+
+  getAll(): Observable<Entry[]> {
+    return this.http.get<Entry[]>(this.base);
+  }
+  create(entry: Entry): Observable<Entry> {
+    return this.http.post<Entry>(this.base, entry);
+  }
+  update(id: number, entry: Entry): Observable<Entry> {
+    return this.http.put<Entry>(this.base + '/' + id, entry);
+  }
+  delete(id: number): Observable<void> {
+    return this.http.delete<void>(this.base + '/' + id);
+  }
+}
+
+
+
+
+import { Component, EventEmitter, Input, OnInit, Output } from '@angular/core';
+import { FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { Entry } from '../../core/models/entry.model';
+import { EntryService } from '../../core/services/entry.service';
+
+@Component({
+  selector: 'app-entry-form',
+  templateUrl: './entry-form.component.html',
+  styleUrls: ['./entry-form.component.css']
+})
+export class EntryFormComponent implements OnInit {
+  @Input() entry: Entry;                       // set = edit mode
+  @Output() saved = new EventEmitter<void>();
+  @Output() cancelled = new EventEmitter<void>();
+
+  form: FormGroup;
+  error = '';
+  saving = false;
+
+  // placeholders: replace with your real values
+  availableOpts = ['Yes', 'No'];
+  sendviaOpts = ['SFTP', 'FTP', 'SCP'];
+  modeOpts = ['Push', 'Pull'];
+
+  constructor(private fb: FormBuilder, private svc: EntryService) {}
+
+  get isEdit(): boolean { return !!(this.entry && this.entry.id); }
+
+  ngOnInit() {
+    const alnum = Validators.pattern(/^[a-zA-Z0-9]+$/);
+    const ip = Validators.pattern(
+      /^((25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(25[0-5]|2[0-4]\d|1?\d?\d)$/);
+
+    this.form = this.fb.group({
+      name:       ['', [Validators.required, alnum]],
+      branchCode: ['', [Validators.required, alnum]],
+      ip:         ['', [Validators.required, ip]],
+      password:   ['', this.isEdit ? [] : [Validators.required]],
+      homedir:    ['', Validators.required],
+      chdir:      ['', Validators.required],
+      available:  ['', Validators.required],
+      sendvia:    ['', Validators.required],
+      mode:       ['', Validators.required]
+    });
+
+    if (this.isEdit) {
+      this.form.patchValue({ ...this.entry, password: '' });
+    }
+  }
+
+  isInvalid(field: string): boolean {
+    const c = this.form.get(field);
+    return c.invalid && (c.dirty || c.touched);
+  }
+
+  save() {
+    if (this.form.invalid) {
+      Object.keys(this.form.controls).forEach(k => this.form.get(k).markAsTouched());
+      return;
+    }
+    this.saving = true;
+    this.error = '';
+
+    const value = { ...this.form.value };
+    if (this.isEdit && !value.password) {
+      delete value.password;                   // blank = keep existing password
+    }
+
+    const call = this.isEdit
+      ? this.svc.update(this.entry.id, value)
+      : this.svc.create(value);
+
+    call.subscribe(
+      () => { this.saving = false; this.saved.emit(); },
+      err => {
+        this.saving = false;
+        this.error = (err.error && err.error.message) || 'Save failed';
+      }
+    );
+  }
+}
+
+
+
+<h3>{{ isEdit ? 'Edit entry' : 'Add entry' }}</h3>
+
+<form [formGroup]="form" (ngSubmit)="save()" novalidate>
+  <div class="grid">
+    <div class="field">
+      <label>Name</label>
+      <input formControlName="name" [class.invalid]="isInvalid('name')">
+      <small *ngIf="isInvalid('name')">Required, letters and digits only</small>
+    </div>
+
+    <div class="field">
+      <label>Branch code</label>
+      <input formControlName="branchCode" [class.invalid]="isInvalid('branchCode')">
+      <small *ngIf="isInvalid('branchCode')">Required, letters and digits only</small>
+    </div>
+
+    <div class="field">
+      <label>IP</label>
+      <input formControlName="ip" [class.invalid]="isInvalid('ip')">
+      <small *ngIf="isInvalid('ip')">Enter a valid IPv4 address</small>
+    </div>
+
+    <div class="field">
+      <label>Password</label>
+      <input type="password" formControlName="password" autocomplete="new-password"
+             [placeholder]="isEdit ? 'Leave blank to keep current' : ''"
+             [class.invalid]="isInvalid('password')">
+      <small *ngIf="isInvalid('password')">Required</small>
+    </div>
+
+    <div class="field">
+      <label>Home dir</label>
+      <input formControlName="homedir" [class.invalid]="isInvalid('homedir')">
+      <small *ngIf="isInvalid('homedir')">Required</small>
+    </div>
+
+    <div class="field">
+      <label>Chdir</label>
+      <input formControlName="chdir" [class.invalid]="isInvalid('chdir')">
+      <small *ngIf="isInvalid('chdir')">Required</small>
+    </div>
+
+    <div class="field">
+      <label>Available</label>
+      <select formControlName="available" [class.invalid]="isInvalid('available')">
+        <option value="">-- select --</option>
+        <option *ngFor="let o of availableOpts" [value]="o">{{o}}</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Send via</label>
+      <select formControlName="sendvia" [class.invalid]="isInvalid('sendvia')">
+        <option value="">-- select --</option>
+        <option *ngFor="let o of sendviaOpts" [value]="o">{{o}}</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Mode</label>
+      <select formControlName="mode" [class.invalid]="isInvalid('mode')">
+        <option value="">-- select --</option>
+        <option *ngFor="let o of modeOpts" [value]="o">{{o}}</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="error" *ngIf="error">{{ error }}</div>
+
+  <div class="actions">
+    <button type="button" class="btn" (click)="cancelled.emit()">Cancel</button>
+    <button type="submit" class="btn btn-primary" [disabled]="saving">
+      {{ saving ? 'Saving...' : 'Save' }}
+    </button>
+  </div>
+</form>
+
+
+
+
+h3 { margin: 0 0 16px; font-size: 18px; }
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px 16px;
+}
+.field { display: flex; flex-direction: column; }
+.field label { font-size: 12px; font-weight: 600; color: #555; margin-bottom: 4px; }
+.field input, .field select {
+  padding: 8px 10px;
+  border: 1px solid #ccd0d5;
+  border-radius: 6px;
+  font-size: 14px;
+  background: #fff;
+}
+.field input:focus, .field select:focus {
+  outline: none; border-color: #2f6fed; box-shadow: 0 0 0 2px rgba(47,111,237,.15);
+}
+.field .invalid { border-color: #d93025; }
+.field small { color: #d93025; font-size: 11px; margin-top: 3px; }
+
+.error {
+  margin-top: 14px; padding: 8px 10px; border-radius: 6px;
+  background: #fdecea; color: #b3261e; font-size: 13px;
+}
+.actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+
+.btn {
+  padding: 8px 16px; border: 1px solid #ccd0d5; border-radius: 6px;
+  background: #fff; cursor: pointer; font-size: 14px;
+}
+.btn:hover { background: #f3f4f6; }
+.btn-primary { background: #2f6fed; border-color: #2f6fed; color: #fff; }
+.btn-primary:hover { background: #2559c4; }
+.btn-primary:disabled { opacity: .6; cursor: default; }
+
+@media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
+
+
+
+
+
+
+
+
+
+:host { display: block; padding: 24px; background: #f5f6f8; min-height: 100vh; }
+
+.toolbar {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 16px;
+}
+.toolbar h2 { margin: 0; font-size: 20px; }
+
+.card {
+  background: #fff; border-radius: 10px; overflow-x: auto;
+  box-shadow: 0 1px 3px rgba(0,0,0,.08);
+}
+
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th {
+  text-align: left; padding: 12px 14px; background: #fafbfc;
+  color: #555; font-size: 12px; text-transform: uppercase; letter-spacing: .4px;
+  border-bottom: 1px solid #e5e7eb; white-space: nowrap;
+}
+td { padding: 12px 14px; border-bottom: 1px solid #f0f1f3; white-space: nowrap; }
+tr:hover td { background: #fafcff; }
+.empty { text-align: center; color: #888; padding: 32px; }
+
+.btn {
+  padding: 7px 14px; border: 1px solid #ccd0d5; border-radius: 6px;
+  background: #fff; cursor: pointer; font-size: 13px;
+}
+.btn:hover { background: #f3f4f6; }
+.btn-primary { background: #2f6fed; border-color: #2f6fed; color: #fff; }
+.btn-primary:hover { background: #2559c4; }
+.btn-sm { padding: 4px 10px; font-size: 12px; margin-right: 4px; }
+.btn-danger { color: #d93025; border-color: #f1b5b0; }
+.btn-danger:hover { background: #fdecea; }
+
+.badge {
+  display: inline-block; padding: 2px 8px; border-radius: 10px;
+  font-size: 12px; background: #eef1f5;
+}
+.badge-yes { background: #e3f4e8; color: #1e7a3c; }
+.badge-no  { background: #fdecea; color: #b3261e; }
+
+/* popup */
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(0,0,0,.45);
+  display: flex; align-items: center; justify-content: center; z-index: 1000;
+}
+.modal-box {
+  background: #fff; border-radius: 12px; padding: 24px;
+  width: 640px; max-width: 92vw; max-height: 90vh; overflow-y: auto;
+  box-shadow: 0 10px 40px rgba(0,0,0,.25);
+}
+
+
+
+
+
+
+<div class="toolbar">
+  <h2>Entries</h2>
+  <button class="btn btn-primary" (click)="add()">+ Add entry</button>
+</div>
+
+<div class="card">
+  <table>
+    <tr>
+      <th>Name</th><th>Branch</th><th>IP</th><th>Homedir</th><th>Chdir</th>
+      <th>Available</th><th>Sendvia</th><th>Mode</th><th>Actions</th>
+    </tr>
+    <tr *ngFor="let e of entries">
+      <td>{{e.name}}</td><td>{{e.branchCode}}</td><td>{{e.ip}}</td>
+      <td>{{e.homedir}}</td><td>{{e.chdir}}</td>
+      <td><span class="badge" [class.badge-yes]="e.available==='Yes'"
+                [class.badge-no]="e.available==='No'">{{e.available}}</span></td>
+      <td>{{e.sendvia}}</td><td>{{e.mode}}</td>
+      <td>
+        <button class="btn btn-sm" (click)="edit(e)">Edit</button>
+        <button class="btn btn-sm" (click)="logs(e)">Logs</button>
+        <button class="btn btn-sm btn-danger" (click)="remove(e)">Delete</button>
+      </td>
+    </tr>
+    <tr *ngIf="entries.length === 0"><td colspan="9" class="empty">No entries yet</td></tr>
+  </table>
+</div>
+
+<div class="modal-backdrop" *ngIf="showForm">
+  <div class="modal-box">
+    <app-entry-form [entry]="selected"
+                    (saved)="onSaved()" (cancelled)="showForm=false">
+    </app-entry-form>
+  </div>
+</div>
