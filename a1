@@ -1,85 +1,262 @@
-use strict;
-use warnings;
-use Time::Piece;
+package com.example.distributor;
 
-my $mod_file = "mod_file.txt";
-my $acc_file = "access_file.txt";
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpSession;
 
-my %modified;
-my %accessed;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 
-my $year = (localtime)->year;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 
-# Read modification file
-open(my $MOD, "<", $mod_file) or die "Cannot open $mod_file: $!";
+import org.springframework.web.bind.annotation.*;
 
-while (my $line = <$MOD>) {
-    chomp $line;
-    next if $line =~ /^\s*$/;
+import java.util.HashMap;
+import java.util.Map;
 
-    my @fields = split /\s+/, $line;
+@RestController
+@RequestMapping("/api")
+public class AuthController {
 
-    my $month = $fields[5];
-    my $day   = $fields[6];
-    my $time  = $fields[7];
-    my $file  = $fields[8];
+    private final AuthenticationManager authenticationManager;
 
-    my $tp = Time::Piece->strptime(
-        "$month $day $year $time",
-        "%b %d %Y %H:%M"
-    );
+    public AuthController(
+            AuthenticationManager authenticationManager) {
 
-    $modified{$file} = $tp;
-}
-
-close($MOD);
-
-# Read access file
-open(my $ACC, "<", $acc_file) or die "Cannot open $acc_file: $!";
-
-while (my $line = <$ACC>) {
-    chomp $line;
-    next if $line =~ /^\s*$/;
-
-    my @fields = split /\s+/, $line;
-
-    my $month = $fields[5];
-    my $day   = $fields[6];
-    my $time  = $fields[7];
-    my $file  = $fields[8];
-
-    my $tp = Time::Piece->strptime(
-        "$month $day $year $time",
-        "%b %d %Y %H:%M"
-    );
-
-    $accessed{$file} = $tp;
-}
-
-close($ACC);
-
-# Compare timestamps
-foreach my $file (sort keys %modified) {
-
-    print "File: $file\n";
-
-    if (exists $accessed{$file}) {
-
-        my $diff = $accessed{$file} - $modified{$file};
-
-        if ($diff < 0) {
-            print "  Access time is before modification time.\n";
-        }
-        elsif ($diff <= 600) {
-            printf "  Accessed within 10 minutes (%.0f minutes)\n", $diff / 60;
-        }
-        else {
-            printf "  Accessed after %.0f minutes\n", $diff / 60;
-        }
-    }
-    else {
-        print "  File was NOT accessed.\n";
+        this.authenticationManager = authenticationManager;
     }
 
-    print "\n";
+    @PostMapping("/login")
+    public ResponseEntity<?> login(
+            @RequestBody LoginRequest loginRequest,
+            HttpServletRequest request) {
+
+        try {
+
+            Authentication authentication =
+                authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(
+                        loginRequest.getUsername(),
+                        loginRequest.getPassword()
+                    )
+                );
+
+            SecurityContext context =
+                SecurityContextHolder.createEmptyContext();
+
+            context.setAuthentication(authentication);
+
+            SecurityContextHolder.setContext(context);
+
+            HttpSession session = request.getSession(true);
+
+            session.setAttribute(
+                HttpSessionSecurityContextRepository
+                    .SPRING_SECURITY_CONTEXT_KEY,
+                context
+            );
+
+            Map<String, Object> response = new HashMap<>();
+
+            response.put("message", "Login successful");
+            response.put("username", authentication.getName());
+            response.put("sessionId", session.getId());
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+
+            SecurityContextHolder.clearContext();
+
+            Map<String, String> response = new HashMap<>();
+
+            response.put("message", "Invalid username or password");
+
+            return ResponseEntity
+                .status(HttpStatus.UNAUTHORIZED)
+                .body(response);
+        }
+    }
+
+    @GetMapping("/me")
+    public Map<String, Object> getCurrentUser(
+            Authentication authentication) {
+
+        Map<String, Object> response = new HashMap<>();
+
+        response.put("username", authentication.getName());
+        response.put("authenticated", authentication.isAuthenticated());
+
+        return response;
+    }
+
+    public static class LoginRequest {
+
+        private String username;
+        private String password;
+
+        public String getUsername() {
+            return username;
+        }
+
+        public void setUsername(String username) {
+            this.username = username;
+        }
+
+        public String getPassword() {
+            return password;
+        }
+
+        public void setPassword(String password) {
+            this.password = password;
+        }
+    }
 }
+
+
+
+
+
+
+
+@Bean
+@Override
+public AuthenticationManager authenticationManagerBean()
+        throws Exception {
+
+    return super.authenticationManagerBean();
+}
+
+
+
+
+
+
+
+
+login(username: string, password: string): Observable<any> {
+
+  const headers = new HttpHeaders({
+    'Content-Type': 'application/json',
+    'X-XSRF-TOKEN': this.csrfToken
+  });
+
+  return this.http.post(
+    this.baseUrl + '/login',
+    {
+      username: username,
+      password: password
+    },
+    {
+      headers: headers,
+      withCredentials: true
+    }
+  );
+}
+
+
+
+
+
+
+
+
+checkSession(): Observable<any> {
+
+  return this.http.get(
+    this.baseUrl + '/me',
+    {
+      withCredentials: true
+    }
+  );
+}
+
+
+
+
+username: string = 'test';
+password: string = 'pass123';
+
+login() {
+
+  this.securityService.login(
+    this.username,
+    this.password
+  ).subscribe(
+    result => {
+      this.response = result;
+      console.log('Login successful');
+    },
+    error => {
+      this.response = error.error;
+    }
+  );
+}
+
+checkSession() {
+
+  this.securityService.checkSession()
+    .subscribe(
+      result => {
+        this.response = result;
+      },
+      error => {
+        this.response = error.error;
+      }
+    );
+}
+
+
+
+
+
+
+<h2>Spring Security Authentication Test</h2>
+
+<input
+  type="text"
+  [(ngModel)]="username"
+  placeholder="Username">
+
+<br><br>
+
+<input
+  type="password"
+  [(ngModel)]="password"
+  placeholder="Password">
+
+<br><br>
+
+<button (click)="getCsrf()">
+  1. Generate CSRF
+</button>
+
+<br><br>
+
+<button (click)="login()">
+  2. Login
+</button>
+
+<br><br>
+
+<button (click)="checkSession()">
+  3. Check Session
+</button>
+
+<br><br>
+
+<button (click)="getData()">
+  4. Get Protected Data
+</button>
+
+<br><br>
+
+<button (click)="postData()">
+  5. POST Data
+</button>
+
+<pre>{{ response | json }}</pre>
