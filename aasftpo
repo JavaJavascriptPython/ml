@@ -1,261 +1,53 @@
-package com.company.sftputility.processor;
+import { Injectable } from '@angular/core';
+import {
+  HttpInterceptor,
+  HttpRequest,
+  HttpHandler,
+  HttpEvent
+} from '@angular/common/http';
 
-import com.company.sftputility.exception.ConfigurationException;
-import com.company.sftputility.exception.ValidationException;
-import com.company.sftputility.exception.SftpConnectionException;
-import com.company.sftputility.exception.SftpTransferException;
-import com.company.sftputility.model.Destination;
-import com.company.sftputility.model.TransferRequest;
-import com.company.sftputility.model.TransferResult;
-import com.company.sftputility.model.TransferStatus;
-import com.company.sftputility.repository.DestinationRepository;
-import com.company.sftputility.sftp.SftpService;
-import com.company.sftputility.validation.TransferValidator;
+import { Observable } from 'rxjs';
 
-import java.util.ArrayList;
-import java.util.List;
+@Injectable()
+export class CsrfInterceptor implements HttpInterceptor {
 
-public class TransferProcessor {
+  intercept(
+    req: HttpRequest<any>,
+    next: HttpHandler
+  ): Observable<HttpEvent<any>> {
 
-    private final DestinationRepository destinationRepository;
-    private final TransferValidator transferValidator;
-    private final SftpService sftpService;
+    const token = this.getCookie('XSRF-TOKEN');
 
-    public TransferProcessor(
-            DestinationRepository destinationRepository,
-            TransferValidator transferValidator,
-            SftpService sftpService) {
+    if (token) {
 
-        this.destinationRepository = destinationRepository;
-        this.transferValidator = transferValidator;
-        this.sftpService = sftpService;
+      const clonedRequest = req.clone({
+        withCredentials: true,
+        setHeaders: {
+          'X-XSRF-TOKEN': decodeURIComponent(token)
+        }
+      });
+
+      return next.handle(clonedRequest);
     }
 
-    public List<TransferResult> process(
-            List<TransferRequest> requests) {
-
-        List<TransferResult> results =
-                new ArrayList<TransferResult>();
-
-        if (requests == null) {
-            return results;
-        }
-
-        for (TransferRequest request : requests) {
-
-            TransferResult result =
-                    processSingleTransfer(request);
-
-            results.add(result);
-        }
-
-        return results;
-    }
-
-    private TransferResult processSingleTransfer(
-            TransferRequest request) {
-
-        TransferResult result =
-                createInitialResult(request);
-
-        long startTime =
-                System.currentTimeMillis();
-
-        result.setStartTime(startTime);
-
-        try {
-
-            // 1. Validate request
-            transferValidator.validate(request);
-
-            // 2. Find destination
-            Destination destination =
-                    destinationRepository.findById(
-                            request.getDestinationId()
-                    );
-
-            // 3. Check whether destination is enabled
-            if (!destination.isEnabled()) {
-
-                throw new ValidationException(
-                        "Destination is disabled: "
-                                + destination.getId()
-                );
-            }
-
-            // 4. Perform SFTP upload
-            sftpService.upload(
-                    destination,
-                    request.getSourceFile(),
-                    request.getDestinationFile()
-            );
-
-            // 5. Mark successful
-            result.setStatus(
-                    TransferStatus.SUCCESS
-            );
-
-            result.setReason(
-                    "File transferred successfully."
-            );
-
-        } catch (ValidationException e) {
-
-            result.setStatus(
-                    TransferStatus.FAILED
-            );
-
-            result.setReason(
-                    "Validation failed: "
-                            + e.getMessage()
-            );
-
-        } catch (ConfigurationException e) {
-
-            result.setStatus(
-                    TransferStatus.FAILED
-            );
-
-            result.setReason(
-                    "Destination configuration error: "
-                            + e.getMessage()
-            );
-
-        } catch (SftpConnectionException e) {
-
-            result.setStatus(
-                    TransferStatus.FAILED
-            );
-
-            result.setReason(
-                    "SFTP connection failed: "
-                            + e.getMessage()
-            );
-
-        } catch (SftpTransferException e) {
-
-            result.setStatus(
-                    TransferStatus.FAILED
-            );
-
-            result.setReason(
-                    "SFTP transfer failed: "
-                            + e.getMessage()
-            );
-
-        } catch (Exception e) {
-
-            result.setStatus(
-                    TransferStatus.FAILED
-            );
-
-            result.setReason(
-                    "Unexpected error: "
-                            + e.getMessage()
-            );
-
-        } finally {
-
-            result.setEndTime(
-                    System.currentTimeMillis()
-            );
-        }
-
-        return result;
-    }
-
-    private TransferResult createInitialResult(
-            TransferRequest request) {
-
-        TransferResult result =
-                new TransferResult();
-
-        if (request != null) {
-
-            result.setTransferId(
-                    request.getTransferId()
-            );
-
-            result.setDestinationId(
-                    request.getDestinationId()
-            );
-
-            result.setSourceFile(
-                    request.getSourceFile()
-            );
-
-            result.setDestinationFile(
-                    request.getDestinationFile()
-            );
-        }
-
-        return result;
-    }
-}
-
-
-
-
-import com.company.sftputility.input.CsvTransferRequestReader;
-import com.company.sftputility.input.TransferRequestReader;
-import com.company.sftputility.model.TransferRequest;
-import com.company.sftputility.model.TransferResult;
-import com.company.sftputility.processor.TransferProcessor;
-import com.company.sftputility.sftp.JschSftpService;
-import com.company.sftputility.sftp.SftpService;
-import com.company.sftputility.validation.TransferValidator;
-
-import java.util.List;
-
-
-
-
-TransferRequestReader requestReader =
-        new CsvTransferRequestReader();
-
-List<TransferRequest> requests =
-        requestReader.read(
-                config.getInputDirectory()
-                        + "/transfers.csv"
-        );
-
-System.out.println(
-        "Transfer requests loaded: "
-                + requests.size()
-);
-
-TransferValidator validator =
-        new TransferValidator();
-
-SftpService sftpService =
-        new JschSftpService(
-                config.getSftpConnectionTimeout(),
-                config.getSftpChannelTimeout()
-        );
-
-TransferProcessor processor =
-        new TransferProcessor(
-                repository,
-                validator,
-                sftpService
-        );
-
-List<TransferResult> results =
-        processor.process(requests);
-
-System.out.println();
-System.out.println("========== RESULTS ==========");
-
-for (TransferResult result : results) {
-
-    System.out.println(
-            result.getTransferId()
-                    + " | "
-                    + result.getStatus()
-                    + " | "
-                    + result.getReason()
-                    + " | "
-                    + result.getDurationMillis()
-                    + " ms"
+    return next.handle(
+      req.clone({ withCredentials: true })
     );
+  }
+
+  private getCookie(name: string): string {
+
+    const cookies = document.cookie.split(';');
+
+    for (let cookie of cookies) {
+
+      cookie = cookie.trim();
+
+      if (cookie.startsWith(name + '=')) {
+        return cookie.substring(name.length + 1);
+      }
+    }
+
+    return null;
+  }
 }
