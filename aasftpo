@@ -1,53 +1,164 @@
+
 import { Injectable } from '@angular/core';
+
+import { BehaviorSubject, Observable, of, throwError } from 'rxjs';
+
 import {
-  HttpInterceptor,
-  HttpRequest,
-  HttpHandler,
-  HttpEvent
-} from '@angular/common/http';
+  catchError,
+  map,
+  switchMap,
+  tap
+} from 'rxjs/operators';
 
-import { Observable } from 'rxjs';
+import { SecurityService } from './security.service';
 
-@Injectable()
-export class CsrfInterceptor implements HttpInterceptor {
+@Injectable({
+  providedIn: 'root'
+})
+export class AuthService {
 
-  intercept(
-    req: HttpRequest<any>,
-    next: HttpHandler
-  ): Observable<HttpEvent<any>> {
+  // null = session status not checked yet
+  // true = authenticated
+  // false = not authenticated
+  private authenticatedSubject =
+    new BehaviorSubject<boolean>(null);
 
-    const token = this.getCookie('XSRF-TOKEN');
+  isAuthenticated$ = this.authenticatedSubject.asObservable();
 
-    if (token) {
+  private userSubject = new BehaviorSubject<any>(null);
 
-      const clonedRequest = req.clone({
-        withCredentials: true,
-        setHeaders: {
-          'X-XSRF-TOKEN': decodeURIComponent(token)
+  currentUser$ = this.userSubject.asObservable();
+
+  constructor(private securityService: SecurityService) {}
+
+  // Check whether a valid backend session exists
+  checkSession(): Observable<boolean> {
+
+    return this.securityService.checkSession().pipe(
+
+      tap(user => {
+        this.userSubject.next(user);
+        this.authenticatedSubject.next(true);
+      }),
+
+      map(() => true),
+
+      catchError(error => {
+
+        if (error.status === 401 || error.status === 403) {
+          this.userSubject.next(null);
+          this.authenticatedSubject.next(false);
+
+          return of(false);
         }
-      });
 
-      return next.handle(clonedRequest);
-    }
-
-    return next.handle(
-      req.clone({ withCredentials: true })
+        return throwError(error);
+      })
     );
   }
 
-  private getCookie(name: string): string {
+  // Login and initialize a fresh CSRF token
+  login(username: string, password: string): Observable<boolean> {
 
-    const cookies = document.cookie.split(';');
+    return this.securityService.login(username, password).pipe(
 
-    for (let cookie of cookies) {
+      switchMap(() => this.securityService.getCsrfToken()),
 
-      cookie = cookie.trim();
+      switchMap(() => this.checkSession())
+    );
+  }
 
-      if (cookie.startsWith(name + '=')) {
-        return cookie.substring(name.length + 1);
-      }
-    }
+  // Logout and clear Angular authentication state
+  logout(): Observable<any> {
 
-    return null;
+    return this.securityService.logout().pipe(
+
+      tap(() => {
+        this.userSubject.next(null);
+        this.authenticatedSubject.next(false);
+      }),
+
+      switchMap(() =>
+        this.securityService.getCsrfToken().pipe(
+          catchError(() => of(null))
+        )
+      )
+    );
+  }
+
+  // Clear local authentication state
+  clearAuthentication(): void {
+    this.userSubject.next(null);
+    this.authenticatedSubject.next(false);
   }
 }
+
+
+
+
+
+
+
+import { Injectable } from '@angular/core';
+
+import {
+  CanActivate,
+  ActivatedRouteSnapshot,
+  RouterStateSnapshot,
+  Router
+} from '@angular/router';
+
+import { Observable, of } from 'rxjs';
+
+import { map, catchError } from 'rxjs/operators';
+
+import { AuthService } from '../services/auth.service';
+
+@Injectable({
+  providedIn: 'root'
+})
+export class AuthGuard implements CanActivate {
+
+  constructor(
+    private authService: AuthService,
+    private router: Router
+  ) {}
+
+  canActivate(
+    route: ActivatedRouteSnapshot,
+    state: RouterStateSnapshot
+  ): Observable<boolean> {
+
+    return this.authService.checkSession().pipe(
+
+      map(isAuthenticated => {
+
+        if (isAuthenticated) {
+          return true;
+        }
+
+        this.router.navigate(['/login'], {
+          queryParams: { returnUrl: state.url }
+        });
+
+        return false;
+      }),
+
+      catchError(error => {
+
+        console.error('Session verification failed', error);
+
+        this.router.navigate(['/login']);
+
+        return of(false);
+      })
+    );
+  }
+}
+
+
+
+
+
+
+
