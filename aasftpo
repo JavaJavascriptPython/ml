@@ -1,161 +1,130 @@
 
-import { Injectable } from '@angular/core';
+<div class="login-container">
 
-import { BehaviorSubject, Observable, of, throwError } from 'rxjs';
+  <div class="login-card">
 
-import {
-  catchError,
-  map,
-  switchMap,
-  tap
-} from 'rxjs/operators';
+    <h1>Welcome Back</h1>
 
-import { SecurityService } from './security.service';
+    <p>Please sign in to continue.</p>
 
-@Injectable({
-  providedIn: 'root'
-})
-export class AuthService {
+    <form (ngSubmit)="login()" #loginForm="ngForm">
 
-  // null = session status not checked yet
-  // true = authenticated
-  // false = not authenticated
-  private authenticatedSubject =
-    new BehaviorSubject<boolean>(null);
+      <div class="form-group">
 
-  isAuthenticated$ = this.authenticatedSubject.asObservable();
+        <label>Username</label>
 
-  private userSubject = new BehaviorSubject<any>(null);
+        <input
+          type="text"
+          name="username"
+          [(ngModel)]="username"
+          placeholder="Enter username"
+          required
+        />
 
-  currentUser$ = this.userSubject.asObservable();
+      </div>
 
-  constructor(private securityService: SecurityService) {}
+      <div class="form-group">
 
-  // Check whether a valid backend session exists
-  checkSession(): Observable<boolean> {
+        <label>Password</label>
 
-    return this.securityService.checkSession().pipe(
+        <input
+          type="password"
+          name="password"
+          [(ngModel)]="password"
+          placeholder="Enter password"
+          required
+        />
 
-      tap(user => {
-        this.userSubject.next(user);
-        this.authenticatedSubject.next(true);
-      }),
+      </div>
 
-      map(() => true),
+      <div class="error-message" *ngIf="errorMessage">
+        {{ errorMessage }}
+      </div>
 
-      catchError(error => {
+      <button
+        type="submit"
+        [disabled]="loading || !loginForm.valid">
 
-        if (error.status === 401 || error.status === 403) {
-          this.userSubject.next(null);
-          this.authenticatedSubject.next(false);
+        {{ loading ? 'Signing in...' : 'Login' }}
 
-          return of(false);
-        }
+      </button>
 
-        return throwError(error);
-      })
-    );
-  }
+    </form>
 
-  // Login and initialize a fresh CSRF token
-  login(username: string, password: string): Observable<boolean> {
+  </div>
 
-    return this.securityService.login(username, password).pipe(
+</div>
 
-      switchMap(() => this.securityService.getCsrfToken()),
 
-      switchMap(() => this.checkSession())
-    );
-  }
 
-  // Logout and clear Angular authentication state
-  logout(): Observable<any> {
 
-    return this.securityService.logout().pipe(
 
-      tap(() => {
-        this.userSubject.next(null);
-        this.authenticatedSubject.next(false);
-      }),
 
-      switchMap(() =>
-        this.securityService.getCsrfToken().pipe(
-          catchError(() => of(null))
-        )
-      )
-    );
-  }
 
-  // Clear local authentication state
-  clearAuthentication(): void {
-    this.userSubject.next(null);
-    this.authenticatedSubject.next(false);
-  }
+
+.login-container {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #f3f5f9;
 }
 
-
-
-
-
-
-
-import { Injectable } from '@angular/core';
-
-import {
-  CanActivate,
-  ActivatedRouteSnapshot,
-  RouterStateSnapshot,
-  Router
-} from '@angular/router';
-
-import { Observable, of } from 'rxjs';
-
-import { map, catchError } from 'rxjs/operators';
-
-import { AuthService } from '../services/auth.service';
-
-@Injectable({
-  providedIn: 'root'
-})
-export class AuthGuard implements CanActivate {
-
-  constructor(
-    private authService: AuthService,
-    private router: Router
-  ) {}
-
-  canActivate(
-    route: ActivatedRouteSnapshot,
-    state: RouterStateSnapshot
-  ): Observable<boolean> {
-
-    return this.authService.checkSession().pipe(
-
-      map(isAuthenticated => {
-
-        if (isAuthenticated) {
-          return true;
-        }
-
-        this.router.navigate(['/login'], {
-          queryParams: { returnUrl: state.url }
-        });
-
-        return false;
-      }),
-
-      catchError(error => {
-
-        console.error('Session verification failed', error);
-
-        this.router.navigate(['/login']);
-
-        return of(false);
-      })
-    );
-  }
+.login-card {
+  width: 360px;
+  padding: 35px;
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 5px 25px rgba(0, 0, 0, 0.08);
 }
 
+.login-card h1 {
+  margin-bottom: 8px;
+  color: #263445;
+}
+
+.login-card p {
+  color: #777;
+  margin-bottom: 28px;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 12px;
+  box-sizing: border-box;
+  border: 1px solid #d5dbe5;
+  border-radius: 5px;
+}
+
+.login-card button {
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: 5px;
+  background: #2457a6;
+  color: white;
+  cursor: pointer;
+}
+
+.login-card button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.error-message {
+  color: #d93025;
+  margin-bottom: 15px;
+}
 
 
 
