@@ -1,55 +1,94 @@
 
-<div class="login-container">
+import { Component } from '@angular/core';
+import { Router } from '@angular/router';
 
-  <div class="login-card">
+import { AuthService } from '../../services/auth.service';
 
-    <h1>Welcome Back</h1>
+@Component({
+  selector: 'app-layout',
+  templateUrl: './layout.component.html',
+  styleUrls: ['./layout.component.css']
+})
+export class LayoutComponent {
 
-    <p>Please sign in to continue.</p>
+  currentUser$ = this.authService.currentUser$;
 
-    <form (ngSubmit)="login()" #loginForm="ngForm">
+  logoutLoading = false;
 
-      <div class="form-group">
+  constructor(
+    private authService: AuthService,
+    private router: Router
+  ) {}
 
-        <label>Username</label>
+  logout(): void {
 
-        <input
-          type="text"
-          name="username"
-          [(ngModel)]="username"
-          placeholder="Enter username"
-          required
-        />
+    this.logoutLoading = true;
 
-      </div>
+    this.authService.logout().subscribe(
 
-      <div class="form-group">
+      () => {
+        this.logoutLoading = false;
+        this.router.navigate(['/login']);
+      },
 
-        <label>Password</label>
+      error => {
+        this.logoutLoading = false;
+        console.error('Logout failed:', error);
+      }
+    );
+  }
+}
 
-        <input
-          type="password"
-          name="password"
-          [(ngModel)]="password"
-          placeholder="Enter password"
-          required
-        />
 
-      </div>
 
-      <div class="error-message" *ngIf="errorMessage">
-        {{ errorMessage }}
-      </div>
+
+
+
+
+
+<div class="app-layout">
+
+  <header class="app-header">
+
+    <div class="logo">
+      My Application
+    </div>
+
+    <div class="header-right">
+
+      <span *ngIf="currentUser$ | async as user">
+        Welcome, {{ user.username }}
+      </span>
 
       <button
-        type="submit"
-        [disabled]="loading || !loginForm.valid">
+        (click)="logout()"
+        [disabled]="logoutLoading">
 
-        {{ loading ? 'Signing in...' : 'Login' }}
+        {{ logoutLoading ? 'Logging out...' : 'Logout' }}
 
       </button>
 
-    </form>
+    </div>
+
+  </header>
+
+  <div class="app-body">
+
+    <aside class="sidebar">
+
+      <nav>
+        <a routerLink="/dashboard" routerLinkActive="active">
+          Dashboard
+        </a>
+      </nav>
+
+    </aside>
+
+    <main class="main-content">
+
+      <router-outlet></router-outlet>
+
+    </main>
 
   </div>
 
@@ -59,74 +98,151 @@
 
 
 
-
-
-
-.login-container {
+.app-layout {
   min-height: 100vh;
+  background: #f4f6fa;
+}
+
+.app-header {
+  height: 60px;
+  background: #ffffff;
+  border-bottom: 1px solid #e5e7eb;
+
   display: flex;
-  justify-content: center;
   align-items: center;
-  background: #f3f5f9;
+  justify-content: space-between;
+
+  padding: 0 25px;
 }
 
-.login-card {
-  width: 360px;
-  padding: 35px;
-  background: white;
-  border-radius: 10px;
-  box-shadow: 0 5px 25px rgba(0, 0, 0, 0.08);
+.logo {
+  font-size: 20px;
+  font-weight: 700;
+  color: #2457a6;
 }
 
-.login-card h1 {
-  margin-bottom: 8px;
-  color: #263445;
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 20px;
 }
 
-.login-card p {
-  color: #777;
-  margin-bottom: 28px;
-}
-
-.form-group {
-  margin-bottom: 20px;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 8px;
-  font-weight: 600;
-}
-
-.form-group input {
-  width: 100%;
-  padding: 12px;
-  box-sizing: border-box;
-  border: 1px solid #d5dbe5;
-  border-radius: 5px;
-}
-
-.login-card button {
-  width: 100%;
-  padding: 12px;
-  border: none;
-  border-radius: 5px;
+.header-right button {
+  padding: 9px 18px;
   background: #2457a6;
   color: white;
+  border: none;
+  border-radius: 5px;
   cursor: pointer;
 }
 
-.login-card button:disabled {
+.header-right button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 
-.error-message {
-  color: #d93025;
-  margin-bottom: 15px;
+.app-body {
+  display: flex;
+  min-height: calc(100vh - 60px);
+}
+
+.sidebar {
+  width: 220px;
+  background: #ffffff;
+  border-right: 1px solid #e5e7eb;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+.sidebar a {
+  display: block;
+  padding: 12px;
+  color: #444;
+  text-decoration: none;
+  border-radius: 5px;
+}
+
+.sidebar a.active {
+  background: #eaf0fb;
+  color: #2457a6;
+  font-weight: 600;
+}
+
+.main-content {
+  flex: 1;
+  padding: 30px;
 }
 
 
+
+
+
+<div class="dashboard">
+
+  <h1>Dashboard</h1>
+
+  <p class="subtitle">
+    Welcome to your application. Here's your overview.
+  </p>
+
+  <div class="dashboard-cards">
+
+    <div class="dashboard-card">
+      <h3>Application Status</h3>
+      <p class="status">Active</p>
+    </div>
+
+    <div class="dashboard-card">
+      <h3>Authentication</h3>
+      <p class="status">Authenticated</p>
+    </div>
+
+    <div class="dashboard-card">
+      <h3>Session</h3>
+      <p class="status">Connected</p>
+    </div>
+
+  </div>
+
+</div>
+
+
+
+
+
+.dashboard h1 {
+  color: #263445;
+  margin-bottom: 8px;
+}
+
+.subtitle {
+  color: #777;
+  margin-bottom: 30px;
+}
+
+.dashboard-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+.dashboard-card {
+  background: #ffffff;
+  padding: 25px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.dashboard-card h3 {
+  color: #555;
+  font-size: 15px;
+}
+
+.status {
+  color: #16834a;
+  font-weight: 600;
+  font-size: 18px;
+}
 
 
 
