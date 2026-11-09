@@ -1,81 +1,51 @@
 
-import { Injectable, Injector } from '@angular/core';
+import { Injectable } from '@angular/core';
 
 import {
-  HttpInterceptor,
-  HttpRequest,
-  HttpHandler,
-  HttpEvent
-} from '@angular/common/http';
+  CanActivate,
+  Router
+} from '@angular/router';
 
-import { Observable, throwError } from 'rxjs';
+import { Observable, of } from 'rxjs';
 
-import { catchError, tap } from 'rxjs/operators';
+import { map, catchError } from 'rxjs/operators';
 
-import { Router } from '@angular/router';
 import { AuthService } from '../services/auth.service';
 
-@Injectable()
-export class SessionExpiryInterceptor implements HttpInterceptor {
-
-  private redirecting = false;
+@Injectable({
+  providedIn: 'root'
+})
+export class GuestGuard implements CanActivate {
 
   constructor(
-    private router: Router,
-    private injector: Injector
+    private authService: AuthService,
+    private router: Router
   ) {}
 
-  intercept(
-    req: HttpRequest<any>,
-    next: HttpHandler
-  ): Observable<HttpEvent<any>> {
+  canActivate(): Observable<boolean> {
 
-    return next.handle(req).pipe(
+    return this.authService.checkSession().pipe(
 
-      tap(() => {
+      map(isAuthenticated => {
 
-        // Reset after a successful login
-        if (req.url.split('?')[0].endsWith('/api/login')) {
-          this.redirecting = false;
+        if (isAuthenticated) {
+          this.router.navigate(['/dashboard']);
+          return false;
         }
 
+        return true;
       }),
 
       catchError(error => {
 
-        const url = req.url.split('?')[0];
+        console.error('GuestGuard session check failed:', error);
 
-        const isBackendApi =
-          req.url.startsWith('http://localhost:8070/api/');
-
-        const isAuthenticationEndpoint =
-          url.endsWith('/api/login') ||
-          url.endsWith('/api/me') ||
-          url.endsWith('/api/csrf') ||
-          url.endsWith('/api/auth/logout');
-
-        // Handle authentication errors only for protected API requests
-        if (
-          isBackendApi &&
-          !isAuthenticationEndpoint &&
-          (error.status === 401 || error.status === 403) &&
-          !this.redirecting
-        ) {
-
-          this.redirecting = true;
-
-          // Resolve AuthService lazily to avoid a dependency cycle
-          const authService = this.injector.get(AuthService);
-
-          authService.clearAuthentication();
-
-          this.router.navigate(['/login'], {
-            queryParams: { sessionExpired: 'true' }
-          });
-        }
-
-        return throwError(error);
+        // Allow access to login if the server is unavailable.
+        return of(true);
       })
     );
   }
 }
+
+
+
