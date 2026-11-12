@@ -1,0 +1,718 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grid Sketch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+/* Layout concept: two columns on wide screens. Left = draw (settings + editable grid). Right = check (device preview) and copy (code). Stacks to one column on phones. */
+:root {
+  --bg: #eef1f5;
+  --surface: #ffffff;
+  --surface-2: #e4e9f0;
+  --ink: #121b26;
+  --muted: #566577;
+  --line: #cfd7e2;
+  --accent: #2352d8;
+  --accent-ink: #ffffff;
+  --danger: #b83232;
+  --code-bg: #0f1823;
+  --code-ink: #d9e5f4;
+  --c1: #2f6fed;
+  --c2: #14907a;
+  --c3: #d17a12;
+  --c4: #cf3f67;
+  --c5: #7352cf;
+  --c6: #2f8fc9;
+  --c7: #6f9420;
+  --c8: #bd5226;
+  --font-display: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d131a; --surface: #151d27; --surface-2: #1c2733; --ink: #e7edf4; --muted: #94a2b3; --line: #2a3645;
+    --accent: #7ea0ff; --accent-ink: #0b1220; --danger: #f08080; --code-bg: #0a0f15; --code-ink: #d9e5f4;
+    --c1: #6b97ff; --c2: #3fd0b5; --c3: #f0a94a; --c4: #ef7a98; --c5: #a38bf0; --c6: #68b8f0; --c7: #a5cc57; --c8: #e8805a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d131a; --surface: #151d27; --surface-2: #1c2733; --ink: #e7edf4; --muted: #94a2b3; --line: #2a3645;
+  --accent: #7ea0ff; --accent-ink: #0b1220; --danger: #f08080; --code-bg: #0a0f15; --code-ink: #d9e5f4;
+  --c1: #6b97ff; --c2: #3fd0b5; --c3: #f0a94a; --c4: #ef7a98; --c5: #a38bf0; --c6: #68b8f0; --c7: #a5cc57; --c8: #e8805a;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--font-body); }
+button, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.app {
+  max-width: 1320px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 48px;
+}
+.top { display: flex; flex-direction: column; gap: 4px; margin-bottom: 20px; }
+h1 { font: 700 clamp(1.7rem, 3.2vw, 2.2rem)/1.1 var(--font-display); letter-spacing: -0.02em; margin: 0; text-wrap: balance; }
+.top p { margin: 0; color: var(--muted); max-width: 60ch; }
+h2 { font: 700 1.2rem/1.2 var(--font-display); letter-spacing: -0.01em; margin: 0; text-wrap: balance; }
+.eyebrow { font: 600 11px var(--font-mono); letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); margin: 0 0 4px; }
+
+.cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
+.col { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+@media (min-width: 1000px) { .cols { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); align-items: start; } }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px; min-width: 0; }
+.panel-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px; margin-bottom: 16px; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.btn { min-height: 36px; padding: 7px 12px; border: 1px solid var(--line); background: var(--surface); border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; }
+.btn:hover { border-color: var(--accent); }
+.btn:disabled { opacity: 0.4; cursor: default; border-color: var(--line); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.danger { color: var(--danger); }
+
+.controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px 20px; margin-bottom: 14px; }
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.field > .lbl, .field > label { font-size: 12px; font-weight: 600; color: var(--muted); display: flex; justify-content: space-between; gap: 8px; }
+.field .val { font-family: var(--font-mono); font-weight: 500; color: var(--ink); font-variant-numeric: tabular-nums; }
+.stepper { display: inline-flex; align-items: center; gap: 0; border: 1px solid var(--line); border-radius: 6px; align-self: flex-start; }
+.stepper button { width: 38px; height: 36px; border: 0; background: transparent; cursor: pointer; font-size: 18px; line-height: 1; }
+.stepper button:hover:not(:disabled) { background: var(--surface-2); }
+.stepper button:disabled { opacity: 0.35; cursor: default; }
+.stepper output { min-width: 3ch; text-align: center; font: 500 14px var(--font-mono); font-variant-numeric: tabular-nums; }
+input[type="range"] { width: 100%; accent-color: var(--accent); margin: 6px 0; }
+.checks { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-bottom: 4px; }
+.check { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+.check input { width: 16px; height: 16px; accent-color: var(--accent); margin: 0; }
+.msg { min-height: 1.3em; margin: 4px 0 10px; font-size: 12px; color: var(--muted); }
+
+.canvas {
+  display: grid; gap: 6px; padding: 8px; position: relative;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px;
+  touch-action: none; user-select: none; -webkit-user-select: none;
+}
+.cell { background: var(--surface); border: 1px solid var(--line); border-radius: 3px; min-width: 0; }
+.box {
+  position: relative; z-index: 1; display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+  min-width: 0; padding: 5px 7px; overflow: hidden; cursor: grab; border-radius: 4px;
+  border: 2px solid var(--col); background: var(--surface);
+  background: color-mix(in srgb, var(--col) 24%, var(--surface));
+}
+.box.sel { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent); z-index: 2; }
+.box.dragging { opacity: 0.35; }
+.bn { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 12px var(--font-mono); }
+.bs { font: 11px var(--font-mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.handle {
+  position: absolute; right: 0; bottom: 0; width: 18px; height: 18px; cursor: nwse-resize;
+  background: linear-gradient(135deg, transparent 52%, var(--col) 52%, var(--col) 62%, transparent 62%, transparent 76%, var(--col) 76%, var(--col) 86%, transparent 86%);
+}
+.box.small .handle { width: 10px; height: 10px; }
+.ghost { z-index: 3; pointer-events: none; border: 2px dashed var(--accent); border-radius: 4px; background: color-mix(in srgb, var(--accent) 16%, transparent); }
+
+.hint { margin: 10px 0 0; font-size: 13px; color: var(--muted); }
+.selbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.selbar label { font-size: 12px; font-weight: 600; color: var(--muted); }
+.selbar input[type="text"] { width: 12rem; max-width: 100%; min-height: 36px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); font: 500 13px var(--font-mono); }
+.selinfo { flex: 1 1 14rem; min-width: 0; font: 12px var(--font-mono); color: var(--muted); overflow-wrap: anywhere; }
+
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg button { min-height: 34px; padding: 6px 14px; border: 0; background: transparent; cursor: pointer; font-size: 13px; font-weight: 500; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.pv-frame { margin: 12px auto 0; max-width: 100%; padding: 10px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; transition: width 0.2s ease; }
+.pv-frame[data-device="desktop"] { width: 100%; }
+.pv-frame[data-device="tablet"] { width: 768px; }
+.pv-frame[data-device="phone"] { width: 390px; }
+.pv { display: grid; min-width: 0; }
+.pbox {
+  display: flex; align-items: center; justify-content: center; min-width: 0; padding: 6px; overflow: hidden; text-align: center;
+  overflow-wrap: anywhere; border-radius: 4px; border: 2px solid var(--col); background: var(--surface);
+  background: color-mix(in srgb, var(--col) 24%, var(--surface)); font: 600 12px var(--font-mono);
+}
+.pv-empty { grid-column: 1 / -1; padding: 28px 12px; text-align: center; color: var(--muted); font-size: 13px; }
+.caption { margin: 10px 0 0; font-size: 12px; color: var(--muted); text-align: center; }
+
+.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin-bottom: 12px; overflow-x: auto; }
+.tabs button { min-height: 38px; padding: 8px 14px; border: 0; border-bottom: 2px solid transparent; background: transparent; cursor: pointer; font-size: 13px; font-weight: 500; color: var(--muted); white-space: nowrap; }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.code { margin: 0; padding: 14px 16px; max-height: 520px; overflow: auto; background: var(--code-bg); color: var(--code-ink); border-radius: 8px; font: 12.5px/1.6 var(--font-mono); white-space: pre; tab-size: 2; }
+.copy-row { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+.copy-row .msg { margin: 0; }
+.note { margin: 12px 0 0; font-size: 13px; color: var(--muted); }
+.note code { font: 12px var(--font-mono); background: var(--surface-2); padding: 1px 5px; border-radius: 4px; color: var(--ink); overflow-wrap: anywhere; }
+
+@media (prefers-reduced-motion: reduce) { .pv-frame { transition: none; } }
+
+/* Standalone page basics */
+body { margin: 0; }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="top">
+    <h1>Grid Sketch</h1>
+    <p>Draw your page layout with the mouse. Copy the CSS and HTML that make it fit desktops, tablets and phones.</p>
+  </header>
+
+  <main class="cols">
+    <div class="col">
+      <section class="panel" aria-labelledby="t-draw">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Step 1</p>
+            <h2 id="t-draw">Draw your layout</h2>
+          </div>
+          <div class="actions">
+            <button type="button" class="btn" id="addBtn">Add box</button>
+            <button type="button" class="btn" id="exampleBtn">Load example</button>
+            <button type="button" class="btn" id="clearBtn">Clear all</button>
+          </div>
+        </div>
+
+        <div class="controls">
+          <div class="field" role="group" aria-labelledby="l-cols">
+            <span class="lbl" id="l-cols">Columns</span>
+            <div class="stepper">
+              <button type="button" id="colsDec" aria-label="Fewer columns">&minus;</button>
+              <output id="colsVal" aria-live="polite">12</output>
+              <button type="button" id="colsInc" aria-label="More columns">+</button>
+            </div>
+          </div>
+          <div class="field" role="group" aria-labelledby="l-rows">
+            <span class="lbl" id="l-rows">Rows</span>
+            <div class="stepper">
+              <button type="button" id="rowsDec" aria-label="Fewer rows">&minus;</button>
+              <output id="rowsVal" aria-live="polite">6</output>
+              <button type="button" id="rowsInc" aria-label="More rows">+</button>
+            </div>
+          </div>
+          <div class="field">
+            <label for="gap">Space between boxes <span class="val" id="gapVal"></span></label>
+            <input type="range" id="gap" min="0" max="48" step="4" value="16">
+          </div>
+          <div class="field">
+            <label for="rowH">Minimum row height <span class="val" id="rowHVal"></span></label>
+            <input type="range" id="rowH" min="40" max="240" step="10" value="80">
+          </div>
+        </div>
+
+        <div class="checks">
+          <label class="check"><input type="checkbox" id="tabletOn" checked> Tablet (up to 1024px): 2 columns</label>
+          <label class="check"><input type="checkbox" id="mobileOn" checked> Phone (up to 640px): stack in 1 column</label>
+        </div>
+        <p class="msg" id="gridMsg" role="status"></p>
+
+        <div class="canvas" id="canvas" role="group" aria-label="Layout grid editor"></div>
+        <p class="hint">Drag across empty cells to draw a box. Drag a box to move it. Pull its bottom-right corner to resize. With the keyboard: select a box, then use arrow keys to move, Shift + arrows to resize, Delete to remove.</p>
+
+        <div class="selbar" id="selbar" hidden>
+          <label for="boxName">Box name</label>
+          <input type="text" id="boxName" autocomplete="off" spellcheck="false" maxlength="32">
+          <span class="selinfo" id="selInfo"></span>
+          <button type="button" class="btn danger" id="delBtn">Delete box</button>
+        </div>
+        <p class="hint" id="noSel">Select a box to rename it. Its name becomes the CSS class.</p>
+      </section>
+    </div>
+
+    <div class="col">
+      <section class="panel" aria-labelledby="t-check">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Step 2</p>
+            <h2 id="t-check">Check each screen size</h2>
+          </div>
+          <div class="seg" role="group" aria-label="Screen size">
+            <button type="button" data-device="desktop" aria-pressed="true">Desktop</button>
+            <button type="button" data-device="tablet" aria-pressed="false">Tablet</button>
+            <button type="button" data-device="phone" aria-pressed="false">Phone</button>
+          </div>
+        </div>
+        <div class="pv-frame" id="pvFrame" data-device="desktop">
+          <div class="pv" id="pv"></div>
+        </div>
+        <p class="caption" id="caption"></p>
+      </section>
+
+      <section class="panel" aria-labelledby="t-copy">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Step 3</p>
+            <h2 id="t-copy">Copy the code</h2>
+          </div>
+        </div>
+        <div class="tabs" role="tablist" aria-label="Code type">
+          <button type="button" role="tab" data-tab="css" aria-selected="true">CSS</button>
+          <button type="button" role="tab" data-tab="html" aria-selected="false">HTML</button>
+          <button type="button" role="tab" data-tab="page" aria-selected="false">Full page</button>
+        </div>
+        <pre class="code" id="code" tabindex="0" aria-label="Generated code"></pre>
+        <div class="copy-row">
+          <button type="button" class="btn primary" id="copyBtn">Copy code</button>
+          <span class="msg" id="copyMsg" role="status"></span>
+        </div>
+        <p class="note">Put the CSS in your stylesheet and the HTML where the layout goes. Your page needs <code>&lt;meta name="viewport" content="width=device-width, initial-scale=1"&gt;</code> in its head, or phones will ignore the screen-size rules. The Full page tab already has it.</p>
+      </section>
+    </div>
+  </main>
+</div>
+
+<script>
+/* Layout logic: no DOM access in this block. */
+var BP_TABLET = 1024, BP_PHONE = 640;
+
+function slug(s) {
+  s = String(s || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  if (!s) return 'box';
+  if (/^[0-9]/.test(s)) s = 'box-' + s;
+  return s;
+}
+function uniqueNames(boxes) {
+  var seen = { layout: 1 };
+  return boxes.map(function (b) {
+    var base = slug(b.name), n = base, i = 2;
+    while (seen[n]) { n = base + '-' + i; i++; }
+    seen[n] = 1;
+    return n;
+  });
+}
+function readingOrder(boxes) {
+  return boxes.map(function (b, i) { return { b: b, i: i }; })
+    .sort(function (x, y) { return x.b.r - y.b.r || x.b.c - y.b.c || x.i - y.i; });
+}
+function rectsOverlap(a, b) {
+  return a.c < b.c + b.w && b.c < a.c + a.w && a.r < b.r + b.h && b.r < a.r + a.h;
+}
+function fits(rect, boxes, cols, rows, ignoreId) {
+  if (rect.c < 1 || rect.r < 1 || rect.w < 1 || rect.h < 1) return false;
+  if (rect.c + rect.w - 1 > cols || rect.r + rect.h - 1 > rows) return false;
+  return !boxes.some(function (b) { return b.id !== ignoreId && rectsOverlap(rect, b); });
+}
+function fitBoxesToGrid(boxes, cols, rows) {
+  return boxes
+    .filter(function (b) { return b.c <= cols && b.r <= rows; })
+    .map(function (b) {
+      return Object.assign({}, b, { w: Math.min(b.w, cols - b.c + 1), h: Math.min(b.h, rows - b.r + 1) });
+    });
+}
+function fmtRem(px) { return (Math.round(px / 16 * 1000) / 1000) + 'rem'; }
+
+/* kind: 'desktop' | 'tablet' | 'mobile' */
+function layoutFor(state, kind) {
+  var names = uniqueNames(state.boxes);
+  var cols = kind === 'desktop' ? state.cols : kind === 'tablet' ? Math.min(2, state.cols) : 1;
+  var items = readingOrder(state.boxes).map(function (o) {
+    var b = o.b, col, row;
+    if (kind === 'desktop') { col = b.c + ' / span ' + b.w; row = b.r + ' / span ' + b.h; }
+    else if (kind === 'tablet') { col = (cols === 1 || b.w * 2 > state.cols) ? '1 / -1' : 'span 1'; row = 'auto'; }
+    else { col = '1 / -1'; row = 'auto'; }
+    return { id: b.id, k: b.k, name: names[o.i], label: b.name || names[o.i], col: col, row: row };
+  });
+  return { cols: cols, items: items };
+}
+function tabletActive(state, opts) { return !!opts.tablet && state.cols > 2; }
+function effectiveKind(state, opts, device) {
+  var t = tabletActive(state, opts);
+  if (device === 'phone') return opts.mobile ? 'mobile' : (t ? 'tablet' : 'desktop');
+  if (device === 'tablet') return t ? 'tablet' : 'desktop';
+  return 'desktop';
+}
+
+function rule(sel, decls, indent) {
+  indent = indent || '';
+  return indent + sel + ' {\n' + decls.map(function (d) { return indent + '  ' + d + ';'; }).join('\n') + '\n' + indent + '}';
+}
+function genCSS(state, opts) {
+  var d = layoutFor(state, 'desktop');
+  var gap = opts.gap === 0 ? '0' : fmtRem(opts.gap);
+  var parts = [];
+  parts.push(
+    '/* The grid: ' + d.cols + ' equal-width column' + (d.cols > 1 ? 's' : '') + ' that stretch to fit the screen.\n' +
+    '   Rows are at least ' + opts.rowH + 'px tall and grow with their content.\n' +
+    '   To center the grid on very wide screens, add: max-width: 1200px; margin: 0 auto; */\n' +
+    rule('.layout', [
+      'display: grid',
+      'grid-template-columns: repeat(' + d.cols + ', minmax(0, 1fr))',
+      'grid-auto-rows: minmax(' + opts.rowH + 'px, auto)',
+      'gap: ' + gap
+    ])
+  );
+  if (!d.items.length) {
+    parts.push('/* Draw a box on the grid and its rules will appear here */');
+    return parts.join('\n\n');
+  }
+  d.items.forEach(function (it, i) {
+    var r = rule('.' + it.name, ['grid-column: ' + it.col, 'grid-row: ' + it.row]);
+    parts.push(i === 0 ? '/* Where each box sits: start line / number of columns or rows it spans */\n' + r : r);
+  });
+  if (tabletActive(state, opts)) {
+    var t = layoutFor(state, 'tablet');
+    var tr = [rule('.layout', ['grid-template-columns: repeat(2, minmax(0, 1fr))'], '  ')]
+      .concat(t.items.map(function (it) {
+        return rule('.' + it.name, ['grid-column: ' + it.col, 'grid-row: auto'], '  ');
+      }));
+    parts.push(
+      '/* Tablet (up to ' + BP_TABLET + 'px): 2 columns. Wide boxes fill the row, smaller ones sit side by side */\n' +
+      '@media (max-width: ' + BP_TABLET + 'px) {\n' + tr.join('\n\n') + '\n}'
+    );
+  }
+  if (opts.mobile) {
+    parts.push(
+      '/* Phone (up to ' + BP_PHONE + 'px): one column, boxes stack in reading order */\n' +
+      '@media (max-width: ' + BP_PHONE + 'px) {\n' +
+      rule('.layout', ['grid-template-columns: minmax(0, 1fr)'], '  ') + '\n\n' +
+      rule('.layout > *', ['grid-column: 1 / -1', 'grid-row: auto'], '  ') + '\n}'
+    );
+  }
+  return parts.join('\n\n');
+}
+function genHTML(state) {
+  var d = layoutFor(state, 'desktop');
+  var lines = ['<div class="layout">'];
+  d.items.forEach(function (it) { lines.push('  <div class="' + it.name + '">' + it.name + '</div>'); });
+  lines.push('</div>');
+  return lines.join('\n');
+}
+function genPage(css, html) {
+  function ind(t, n) { return t.split('\n').map(function (l) { return l ? new Array(n + 1).join(' ') + l : l; }).join('\n'); }
+  return '<!doctype html>\n<html lang="en">\n<head>\n  <meta charset="utf-8">\n' +
+    '  <meta name="viewport" content="width=device-width, initial-scale=1">\n  <title>My layout</title>\n' +
+    '  <style>\n    body { margin: 0; padding: 1rem; }\n\n' + ind(css, 4) + '\n  </style>\n</head>\n<body>\n' +
+    ind(html, 2) + '\n</body>\n</html>';
+}
+function genAll(state, opts) {
+  var css = genCSS(state, opts), html = genHTML(state);
+  return { css: css, html: html, page: genPage(css, html) };
+}
+</script>
+
+<script>
+(function () {
+  var $ = function (s) { return document.querySelector(s); };
+  var clamp = function (v, a, b) { return Math.max(a, Math.min(b, v)); };
+  var CELL_H = 52;
+  var state = { cols: 12, rows: 6, boxes: [], selected: null };
+  var opts = { gap: 16, rowH: 80, tablet: true, mobile: true };
+  var nextId = 1, nextK = 0, device = 'desktop', tab = 'css', ghostEl = null, drag = null, lastSelId = null;
+  var cv = $('#canvas');
+
+  function byId(id) { return state.boxes.filter(function (b) { return b.id === id; })[0]; }
+  function freeName() {
+    var used = {};
+    state.boxes.forEach(function (b) { used[slug(b.name)] = 1; });
+    var n = 1;
+    while (used['box-' + n]) n++;
+    return 'box-' + n;
+  }
+  function addBox(c, r, w, h, name) {
+    var b = { id: nextId++, k: (nextK++) % 8, name: name || freeName(), c: c, r: r, w: w, h: h };
+    state.boxes.push(b);
+    return b;
+  }
+  function loadExample() {
+    state.cols = 12; state.rows = 6; state.boxes = []; nextK = 0; state.selected = null;
+    [['header', 1, 1, 12, 1], ['sidebar', 1, 2, 3, 4], ['main', 4, 2, 6, 3], ['widget', 10, 2, 3, 3],
+     ['card-1', 4, 5, 3, 1], ['card-2', 7, 5, 3, 1], ['card-3', 10, 5, 3, 1], ['footer', 1, 6, 12, 1]]
+      .forEach(function (a) { addBox(a[1], a[2], a[3], a[4], a[0]); });
+    $('#gridMsg').textContent = '';
+    renderAll();
+  }
+
+  function renderControls() {
+    $('#colsVal').textContent = state.cols;
+    $('#rowsVal').textContent = state.rows;
+    $('#colsDec').disabled = state.cols <= 1;
+    $('#colsInc').disabled = state.cols >= 12;
+    $('#rowsDec').disabled = state.rows <= 1;
+    $('#rowsInc').disabled = state.rows >= 12;
+    $('#gapVal').textContent = opts.gap + 'px (' + (opts.gap === 0 ? '0' : fmtRem(opts.gap)) + ')';
+    $('#rowHVal').textContent = opts.rowH + 'px';
+    $('#tabletOn').checked = opts.tablet;
+    $('#mobileOn').checked = opts.mobile;
+  }
+
+  function renderCanvas() {
+    cv.style.gridTemplateColumns = 'repeat(' + state.cols + ', minmax(0, 1fr))';
+    cv.style.gridTemplateRows = 'repeat(' + state.rows + ', ' + CELL_H + 'px)';
+    cv.textContent = '';
+    var frag = document.createDocumentFragment();
+    for (var r = 1; r <= state.rows; r++) {
+      for (var c = 1; c <= state.cols; c++) {
+        var cell = document.createElement('div');
+        cell.className = 'cell';
+        cell.style.gridColumn = c;
+        cell.style.gridRow = r;
+        frag.appendChild(cell);
+      }
+    }
+    state.boxes.forEach(function (b) {
+      var el = document.createElement('div');
+      el.className = 'box' + (b.w * b.h === 1 ? ' small' : '') + (b.id === state.selected ? ' sel' : '');
+      el.dataset.id = b.id;
+      el.tabIndex = 0;
+      el.setAttribute('role', 'button');
+      el.setAttribute('aria-label', b.name + ', columns ' + b.c + ' to ' + (b.c + b.w - 1) + ', rows ' + b.r + ' to ' + (b.r + b.h - 1));
+      el.title = b.name;
+      el.style.gridColumn = b.c + ' / span ' + b.w;
+      el.style.gridRow = b.r + ' / span ' + b.h;
+      el.style.setProperty('--col', 'var(--c' + (b.k + 1) + ')');
+      var bn = document.createElement('span'); bn.className = 'bn'; bn.textContent = b.name || 'box';
+      var bs = document.createElement('span'); bs.className = 'bs'; bs.textContent = b.w + ' × ' + b.h;
+      var hd = document.createElement('span'); hd.className = 'handle'; hd.setAttribute('aria-hidden', 'true');
+      el.appendChild(bn); el.appendChild(bs); el.appendChild(hd);
+      frag.appendChild(el);
+    });
+    ghostEl = document.createElement('div');
+    ghostEl.className = 'ghost';
+    ghostEl.hidden = true;
+    frag.appendChild(ghostEl);
+    cv.appendChild(frag);
+  }
+
+  function rng(a, b, one, many) { return a === b ? one + ' ' + a : many + ' ' + a + '–' + b; }
+  function renderSel() {
+    var b = byId(state.selected);
+    $('#selbar').hidden = !b;
+    $('#noSel').hidden = !!b;
+    if (!b) { lastSelId = null; return; }
+    var nm = $('#boxName');
+    if (lastSelId !== b.id || document.activeElement !== nm) nm.value = b.name;
+    lastSelId = b.id;
+    updateSelInfo(b);
+  }
+  function updateSelInfo(b) {
+    var cls = uniqueNames(state.boxes)[state.boxes.indexOf(b)];
+    $('#selInfo').textContent = '.' + cls + '  ·  ' + rng(b.c, b.c + b.w - 1, 'column', 'columns') + '  ·  ' + rng(b.r, b.r + b.h - 1, 'row', 'rows');
+  }
+  function updateSelection() {
+    var els = cv.querySelectorAll('.box');
+    for (var i = 0; i < els.length; i++) els[i].classList.toggle('sel', +els[i].dataset.id === state.selected);
+    renderSel();
+  }
+
+  function captionFor() {
+    var t = tabletActive(state, opts);
+    var lower = t ? BP_TABLET : (opts.mobile ? BP_PHONE : 0);
+    if (device === 'desktop') return 'Desktop layout · ' + (lower ? 'screens wider than ' + lower + 'px' : 'all screen sizes');
+    if (device === 'tablet') {
+      if (!t) return 'Same as desktop · the tablet layout is off' + (state.cols <= 2 ? ' (the grid has only 2 columns or fewer)' : '');
+      return 'Tablet layout · ' + (opts.mobile ? (BP_PHONE + 1) + '–' + BP_TABLET + 'px' : 'screens up to ' + BP_TABLET + 'px');
+    }
+    if (opts.mobile) return 'Phone layout · screens up to ' + BP_PHONE + 'px';
+    return t ? 'Uses the tablet layout · the phone layout is off' : 'Same as desktop · the phone layout is off';
+  }
+  function renderPreview() {
+    var L = layoutFor(state, effectiveKind(state, opts, device));
+    var pv = $('#pv');
+    $('#pvFrame').dataset.device = device;
+    pv.style.gridTemplateColumns = 'repeat(' + L.cols + ', minmax(0, 1fr))';
+    pv.style.gridAutoRows = 'minmax(' + opts.rowH + 'px, auto)';
+    pv.style.gap = opts.gap + 'px';
+    pv.textContent = '';
+    if (!L.items.length) {
+      var e = document.createElement('div');
+      e.className = 'pv-empty';
+      e.textContent = 'Draw a box on the grid to see it here.';
+      pv.appendChild(e);
+    }
+    L.items.forEach(function (it) {
+      var d = document.createElement('div');
+      d.className = 'pbox';
+      d.textContent = it.label;
+      d.style.gridColumn = it.col;
+      d.style.gridRow = it.row;
+      d.style.setProperty('--col', 'var(--c' + (it.k + 1) + ')');
+      pv.appendChild(d);
+    });
+    $('#caption').textContent = captionFor();
+    var btns = document.querySelectorAll('[data-device]');
+    for (var i = 0; i < btns.length; i++) if (btns[i].tagName === 'BUTTON') btns[i].setAttribute('aria-pressed', btns[i].dataset.device === device);
+  }
+  function renderOutputs() {
+    var o = genAll(state, opts);
+    $('#code').textContent = o[tab];
+    var tabs = document.querySelectorAll('[data-tab]');
+    for (var i = 0; i < tabs.length; i++) tabs[i].setAttribute('aria-selected', tabs[i].dataset.tab === tab);
+  }
+  function renderAll(o) {
+    renderControls();
+    renderCanvas();
+    if (o && o.focusId) {
+      var el = cv.querySelector('.box[data-id="' + o.focusId + '"]');
+      if (el) el.focus({ preventScroll: true });
+    }
+    renderSel();
+    renderPreview();
+    renderOutputs();
+  }
+
+  /* Grid size */
+  function setGrid(c, r) {
+    c = clamp(c, 1, 12); r = clamp(r, 1, 12);
+    var before = state.boxes.length;
+    state.cols = c; state.rows = r;
+    state.boxes = fitBoxesToGrid(state.boxes, c, r);
+    var lost = before - state.boxes.length;
+    if (state.selected && !byId(state.selected)) state.selected = null;
+    $('#gridMsg').textContent = lost ? lost + (lost > 1 ? ' boxes' : ' box') + ' outside the smaller grid ' + (lost > 1 ? 'were' : 'was') + ' removed.' : '';
+    renderAll();
+  }
+  $('#colsDec').onclick = function () { setGrid(state.cols - 1, state.rows); };
+  $('#colsInc').onclick = function () { setGrid(state.cols + 1, state.rows); };
+  $('#rowsDec').onclick = function () { setGrid(state.cols, state.rows - 1); };
+  $('#rowsInc').onclick = function () { setGrid(state.cols, state.rows + 1); };
+  $('#gap').oninput = function (e) { opts.gap = +e.target.value; renderControls(); renderPreview(); renderOutputs(); };
+  $('#rowH').oninput = function (e) { opts.rowH = +e.target.value; renderControls(); renderPreview(); renderOutputs(); };
+  $('#tabletOn').onchange = function (e) { opts.tablet = e.target.checked; renderPreview(); renderOutputs(); };
+  $('#mobileOn').onchange = function (e) { opts.mobile = e.target.checked; renderPreview(); renderOutputs(); };
+
+  /* Buttons */
+  $('#exampleBtn').onclick = loadExample;
+  $('#clearBtn').onclick = function () { state.boxes = []; state.selected = null; $('#gridMsg').textContent = ''; renderAll(); };
+  $('#addBtn').onclick = function () {
+    for (var r = 1; r <= state.rows; r++) for (var c = 1; c <= state.cols; c++) {
+      if (fits({ c: c, r: r, w: 1, h: 1 }, state.boxes, state.cols, state.rows)) {
+        var b = addBox(c, r, 1, 1); state.selected = b.id; renderAll({ focusId: b.id }); return;
+      }
+    }
+    $('#gridMsg').textContent = 'The grid is full. Add a row or column first.';
+  };
+  $('#delBtn').onclick = function () {
+    state.boxes = state.boxes.filter(function (b) { return b.id !== state.selected; });
+    state.selected = null; renderAll();
+  };
+  $('#boxName').oninput = function (e) {
+    var b = byId(state.selected); if (!b) return;
+    b.name = e.target.value;
+    var el = cv.querySelector('.box[data-id="' + b.id + '"] .bn');
+    if (el) el.textContent = b.name || 'box';
+    updateSelInfo(b); renderPreview(); renderOutputs();
+  };
+  Array.prototype.forEach.call(document.querySelectorAll('button[data-device]'), function (btn) {
+    btn.onclick = function () { device = btn.dataset.device; renderPreview(); };
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('button[data-tab]'), function (btn) {
+    btn.onclick = function () { tab = btn.dataset.tab; renderOutputs(); };
+  });
+  var copyTimer = null;
+  $('#copyBtn').onclick = function () {
+    var text = $('#code').textContent;
+    var msg = $('#copyMsg');
+    function done(t) { msg.textContent = t; clearTimeout(copyTimer); copyTimer = setTimeout(function () { msg.textContent = ''; }, 2500); }
+    function fallback() {
+      var range = document.createRange(); range.selectNodeContents($('#code'));
+      var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+      done('Selected. Press Ctrl+C (or Cmd+C) to copy.');
+    }
+    try {
+      navigator.clipboard.writeText(text).then(function () { done('Copied'); }, fallback);
+    } catch (err) { fallback(); }
+  };
+
+  /* Drawing, moving and resizing */
+  function cellAt(e) {
+    var rect = cv.getBoundingClientRect(), cs = getComputedStyle(cv);
+    var gx = parseFloat(cs.columnGap) || 0, gy = parseFloat(cs.rowGap) || 0;
+    var pl = parseFloat(cs.paddingLeft) || 0, pr = parseFloat(cs.paddingRight) || 0, pt = parseFloat(cs.paddingTop) || 0;
+    var cw = (cv.clientWidth - pl - pr - gx * (state.cols - 1)) / state.cols;
+    var x = e.clientX - rect.left - cv.clientLeft - pl;
+    var y = e.clientY - rect.top - cv.clientTop - pt;
+    return {
+      c: clamp(Math.floor((x + gx / 2) / (cw + gx)) + 1, 1, state.cols),
+      r: clamp(Math.floor((y + gy / 2) / (CELL_H + gy)) + 1, 1, state.rows)
+    };
+  }
+  function showGhost(g) {
+    ghostEl.hidden = false;
+    ghostEl.style.gridColumn = g.c + ' / span ' + g.w;
+    ghostEl.style.gridRow = g.r + ' / span ' + g.h;
+  }
+  cv.addEventListener('pointerdown', function (e) {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    var cell = cellAt(e);
+    var boxEl = e.target.closest('.box');
+    var b = boxEl ? byId(+boxEl.dataset.id) : null;
+    if (b) {
+      var isHandle = !!e.target.closest('.handle');
+      drag = { mode: isHandle ? 'resize' : 'move', id: b.id, base: { c: b.c, r: b.r, w: b.w, h: b.h },
+               grab: { dc: cell.c - b.c, dr: cell.r - b.r }, ghost: { c: b.c, r: b.r, w: b.w, h: b.h } };
+      state.selected = b.id;
+      boxEl.classList.add('dragging');
+      updateSelection();
+    } else {
+      drag = { mode: 'create', start: cell, ghost: { c: cell.c, r: cell.r, w: 1, h: 1 } };
+    }
+    cv.setPointerCapture(e.pointerId);
+    e.preventDefault();
+    showGhost(drag.ghost);
+  });
+  cv.addEventListener('pointermove', function (e) {
+    if (!drag) return;
+    var cell = cellAt(e), cand, base = drag.base;
+    if (drag.mode === 'create') {
+      var c1 = Math.min(drag.start.c, cell.c), c2 = Math.max(drag.start.c, cell.c);
+      var r1 = Math.min(drag.start.r, cell.r), r2 = Math.max(drag.start.r, cell.r);
+      cand = { c: c1, r: r1, w: c2 - c1 + 1, h: r2 - r1 + 1 };
+    } else if (drag.mode === 'move') {
+      cand = { c: clamp(cell.c - drag.grab.dc, 1, state.cols - base.w + 1), r: clamp(cell.r - drag.grab.dr, 1, state.rows - base.h + 1), w: base.w, h: base.h };
+    } else {
+      cand = { c: base.c, r: base.r, w: Math.max(1, cell.c - base.c + 1), h: Math.max(1, cell.r - base.r + 1) };
+    }
+    if (fits(cand, state.boxes, state.cols, state.rows, drag.id)) { drag.ghost = cand; showGhost(cand); }
+  });
+  cv.addEventListener('pointerup', function (e) {
+    if (!drag) return;
+    var d = drag; drag = null;
+    try { cv.releasePointerCapture(e.pointerId); } catch (err) { /* already released */ }
+    if (d.mode === 'create') {
+      var nb = addBox(d.ghost.c, d.ghost.r, d.ghost.w, d.ghost.h);
+      state.selected = nb.id;
+    } else {
+      var b = byId(d.id);
+      if (b) { b.c = d.ghost.c; b.r = d.ghost.r; b.w = d.ghost.w; b.h = d.ghost.h; }
+    }
+    renderAll();
+  });
+  cv.addEventListener('pointercancel', function () { drag = null; renderAll(); });
+
+  /* Keyboard */
+  cv.addEventListener('focusin', function (e) {
+    var el = e.target.closest ? e.target.closest('.box') : null;
+    if (el && +el.dataset.id !== state.selected) { state.selected = +el.dataset.id; updateSelection(); }
+  });
+  cv.addEventListener('keydown', function (e) {
+    var el = e.target.closest('.box'); if (!el) return;
+    var b = byId(+el.dataset.id); if (!b) return;
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      e.preventDefault();
+      state.boxes = state.boxes.filter(function (x) { return x.id !== b.id; });
+      state.selected = null; renderAll(); return;
+    }
+    var d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+    if (!d) return;
+    e.preventDefault();
+    var cand = e.shiftKey ? { c: b.c, r: b.r, w: b.w + d[0], h: b.h + d[1] } : { c: b.c + d[0], r: b.r + d[1], w: b.w, h: b.h };
+    if (fits(cand, state.boxes, state.cols, state.rows, b.id)) {
+      b.c = cand.c; b.r = cand.r; b.w = cand.w; b.h = cand.h;
+      renderAll({ focusId: b.id });
+    }
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && state.selected && e.target.tagName !== 'INPUT') { state.selected = null; updateSelection(); }
+  });
+
+  loadExample();
+})();
+</script>
+</body>
+</html>
