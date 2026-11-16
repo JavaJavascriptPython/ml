@@ -1,0 +1,532 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Minimal Dashboard</title>
+
+<style>
+
+/* GLOBAL */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: Arial, sans-serif;
+    background: #f5f6f8;
+    padding: 30px;
+    color: #252a34;
+}
+
+/* DASHBOARD GRID */
+
+.dashboard {
+    display: grid;
+
+    grid-template-columns: 1.2fr 1fr 1fr 1.2fr;
+
+    grid-template-rows: 220px 220px;
+
+    gap: 18px;
+
+    max-width: 1400px;
+    margin: auto;
+}
+
+/* COMMON CARD STYLE */
+
+.card {
+    background: #ffffff;
+
+    border-radius: 14px;
+
+    padding: 22px;
+
+    box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+
+    border: 1px solid #edf0f2;
+
+    position: relative;
+
+    transition: 0.25s ease;
+}
+
+.card:hover {
+    transform: translateY(-3px);
+
+    box-shadow: 0 6px 20px rgba(0,0,0,0.07);
+}
+
+.card h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 10px;
+}
+
+.card p {
+    color: #8a9099;
+    font-size: 13px;
+}
+
+/* CARD POSITIONS */
+
+/* First vertical card */
+
+.card-1 {
+    grid-column: 1;
+    grid-row: 1 / 3;
+}
+
+/* Two small cards */
+
+.card-2 {
+    grid-column: 2;
+    grid-row: 1;
+}
+
+.card-3 {
+    grid-column: 3;
+    grid-row: 1;
+}
+
+/* Horizontal card */
+
+.card-4 {
+    grid-column: 2 / 4;
+    grid-row: 2;
+}
+
+/* Right side vertical cards */
+
+.card-5 {
+    grid-column: 4;
+    grid-row: 1;
+}
+
+.card-6 {
+    grid-column: 4;
+    grid-row: 2;
+}
+
+/* POPUP OPEN BUTTON */
+
+.popup-btn {
+    position: absolute;
+
+    top: 15px;
+    right: 15px;
+
+    border: none;
+
+    background: #f0f2f5;
+
+    color: #343a40;
+
+    padding: 7px 11px;
+
+    border-radius: 7px;
+
+    font-size: 12px;
+
+    cursor: pointer;
+
+    transition: 0.2s;
+}
+
+.popup-btn:hover {
+    background: #e1e5ea;
+}
+
+/* MODAL OVERLAY */
+
+.modal-overlay {
+    position: fixed;
+
+    inset: 0;
+
+    background: rgba(0, 0, 0, 0.60);
+
+    display: none;
+
+    align-items: center;
+    justify-content: center;
+
+    padding: 20px;
+
+    z-index: 1000;
+}
+
+.modal-overlay.active {
+    display: flex;
+}
+
+/* MODAL BOX */
+
+.modal {
+    background: #ffffff;
+
+    width: 90%;
+    max-width: 950px;
+
+    height: 80vh;
+    max-height: 750px;
+
+    border-radius: 16px;
+
+    padding: 28px;
+
+    position: relative;
+
+    display: flex;
+    flex-direction: column;
+
+    animation: popupAnimation 0.25s ease;
+}
+
+@keyframes popupAnimation {
+    from {
+        opacity: 0;
+        transform: translateY(15px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.modal-header {
+    display: flex;
+
+    justify-content: space-between;
+    align-items: center;
+
+    padding-bottom: 20px;
+
+    border-bottom: 1px solid #eeeeee;
+}
+
+.modal-header h2 {
+    font-size: 20px;
+}
+
+/* MODAL CONTENT */
+
+.modal-content {
+    padding: 25px 0;
+
+    flex: 1;
+
+    overflow-y: auto;
+}
+
+/* MODAL FOOTER */
+
+.modal-footer {
+    display: flex;
+
+    justify-content: flex-end;
+
+    padding-top: 20px;
+
+    border-top: 1px solid #eeeeee;
+}
+
+/* CANCEL BUTTON */
+
+.cancel-btn {
+    background: #e53935;
+
+    color: #ffffff;
+
+    border: none;
+
+    padding: 11px 24px;
+
+    border-radius: 8px;
+
+    font-size: 13px;
+
+    font-weight: 600;
+
+    cursor: pointer;
+
+    transition: 0.2s;
+}
+
+.cancel-btn:hover {
+    background: #c62828;
+}
+
+/* RESPONSIVE */
+
+@media (max-width: 900px) {
+
+    .dashboard {
+        grid-template-columns: 1fr 1fr;
+
+        grid-template-rows: auto;
+    }
+
+    .card {
+        min-height: 180px;
+    }
+
+    .card-1 {
+        grid-column: 1;
+        grid-row: 1 / 3;
+    }
+
+    .card-2 {
+        grid-column: 2;
+        grid-row: 1;
+    }
+
+    .card-3 {
+        grid-column: 2;
+        grid-row: 2;
+    }
+
+    .card-4 {
+        grid-column: 1 / 3;
+        grid-row: 3;
+    }
+
+    .card-5 {
+        grid-column: 1;
+        grid-row: 4;
+    }
+
+    .card-6 {
+        grid-column: 2;
+        grid-row: 4;
+    }
+}
+
+@media (max-width: 550px) {
+
+    body {
+        padding: 15px;
+    }
+
+    .dashboard {
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+    }
+
+    .card {
+        padding: 15px;
+    }
+
+    .card-1 {
+        grid-column: 1;
+        grid-row: 1 / 3;
+    }
+
+    .card-2 {
+        grid-column: 2;
+        grid-row: 1;
+    }
+
+    .card-3 {
+        grid-column: 2;
+        grid-row: 2;
+    }
+
+    .card-4 {
+        grid-column: 1 / 3;
+        grid-row: 3;
+    }
+
+    .card-5 {
+        grid-column: 1;
+        grid-row: 4;
+    }
+
+    .card-6 {
+        grid-column: 2;
+        grid-row: 4;
+    }
+
+    .modal {
+        width: 100%;
+        height: 85vh;
+        padding: 18px;
+    }
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="dashboard">
+
+    <!-- CARD 1 : VERTICAL -->
+
+    <div class="card card-1">
+
+        <button class="popup-btn" onclick="openPopup()">
+            Expand ↗
+        </button>
+
+        <h3>Card One</h3>
+
+        <p>Vertical dashboard section</p>
+
+    </div>
+
+
+    <!-- CARD 2 -->
+
+    <div class="card card-2">
+
+        <h3>Card Two</h3>
+
+        <p>Small dashboard section</p>
+
+    </div>
+
+
+    <!-- CARD 3 -->
+
+    <div class="card card-3">
+
+        <h3>Card Three</h3>
+
+        <p>Small dashboard section</p>
+
+    </div>
+
+
+    <!-- CARD 4 : HORIZONTAL -->
+
+    <div class="card card-4">
+
+        <h3>Card Four</h3>
+
+        <p>Horizontal dashboard section</p>
+
+    </div>
+
+
+    <!-- CARD 5 -->
+
+    <div class="card card-5">
+
+        <h3>Card Five</h3>
+
+        <p>Right top section</p>
+
+    </div>
+
+
+    <!-- CARD 6 -->
+
+    <div class="card card-6">
+
+        <h3>Card Six</h3>
+
+        <p>Right bottom section</p>
+
+    </div>
+
+</div>
+
+
+<!-- POPUP MODAL -->
+
+<div class="modal-overlay" id="popupOverlay"
+     onclick="closeOutside(event)">
+
+    <div class="modal" role="dialog"
+         aria-modal="true"
+         aria-labelledby="modalTitle">
+
+        <div class="modal-header">
+
+            <h2 id="modalTitle">Card One Details</h2>
+
+        </div>
+
+
+        <div class="modal-content">
+
+            <h3>Popup Content</h3>
+
+            <p style="margin-top: 12px; color: #888;">
+                You can add tables, charts, forms,
+                statistics or any other content here.
+            </p>
+
+        </div>
+
+
+        <div class="modal-footer">
+
+            <button class="cancel-btn"
+                    onclick="closePopup()">
+                Cancel
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<script>
+
+/* OPEN POPUP */
+
+function openPopup() {
+
+    document.getElementById("popupOverlay")
+        .classList.add("active");
+
+    document.body.style.overflow = "hidden";
+
+}
+
+/* CLOSE POPUP */
+
+function closePopup() {
+
+    document.getElementById("popupOverlay")
+        .classList.remove("active");
+
+    document.body.style.overflow = "";
+
+}
+
+/* CLOSE WHEN CLICKING OUTSIDE */
+
+function closeOutside(event) {
+
+    if (event.target.id === "popupOverlay") {
+        closePopup();
+    }
+
+}
+
+/* ESCAPE KEY */
+
+document.addEventListener("keydown", function(event) {
+
+    if (event.key === "Escape") {
+        closePopup();
+    }
+
+});
+
+</script>
+
+</body>
+</html>
